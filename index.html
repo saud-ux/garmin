@@ -6,7 +6,7 @@
 <title>تطبيق الحكم</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
 <style>
-:root{--bg:#111211;--s1:#1A1C1A;--s2:#202320;--line:#2C2F2C;--line2:#252725;--tx:#E8EBE8;--tx2:#B8BCB8;--mut:#7A827A;--acc:#5C8A5C;--on:#E8EBE8;--amb:#C8963C;--yel:#C8A82A;--red:#C05A50;--blu:#4A82C0}
+:root{--bg:#111211;--s1:#1D201D;--s2:#252825;--line:#333633;--line2:#2A2D2A;--tx:#EDF0ED;--tx2:#B0B8B0;--mut:#687068;--acc:#4E7A4E;--on:#EDF0ED;--amb:#D4982A;--yel:#D4A820;--red:#C85A50;--blu:#4A88C8}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;-webkit-text-size-adjust:100%}
 body{min-height:100vh}
@@ -60,11 +60,11 @@ button,input,select,textarea{font-family:inherit}
 .seg{display:grid;gap:8px}
 .seg.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .seg.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.seg button{min-height:44px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;background:transparent;color:var(--mut);border:1px solid transparent;padding:4px 6px}
-.seg button[aria-pressed="true"]{background:var(--s2);color:var(--tx);border-color:var(--line);font-weight:600}
+.seg button{min-height:44px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;background:var(--s1);color:var(--mut);border:2px solid transparent;padding:4px 6px}
+.seg button[aria-pressed="true"]{background:var(--s2);color:var(--tx);border:2px solid var(--acc);font-weight:700}
 .tabs{display:flex;gap:6px;flex-wrap:wrap}
-.tabs button{height:44px;padding:0 14px;border-radius:22px;font-size:13px;font-weight:600;cursor:pointer;background:var(--s1);color:var(--tx2);border:1px solid var(--line)}
-.tabs button[aria-pressed="true"]{background:var(--tx);color:var(--on)}
+.tabs button{height:36px;padding:0 14px;border-radius:18px;font-size:13px;font-weight:500;cursor:pointer;background:transparent;color:var(--mut);border:1px solid transparent}
+.tabs button[aria-pressed="true"]{background:var(--s2);color:var(--tx);border-color:var(--line);font-weight:600}
 .ev{display:flex;align-items:center;gap:12px;min-height:56px;border-bottom:1px solid var(--line2);padding:6px 0}
 .ev:last-child{border-bottom:0}
 .ev .m{width:44px;font-size:16px;font-weight:700;direction:ltr;text-align:right;flex-shrink:0}
