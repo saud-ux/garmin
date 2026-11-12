@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<iq:manifest xmlns:iq="http://www.garmin.com/xml/connectiq" version="3">
+    <iq:application id="9693b0e4c6b4454d86ce3897cf28b7bb" type="watch-app" name="@Strings.AppName" entry="RefereeApp" minApiLevel="3.2.0">
+        <iq:products>
+            <iq:product id="vivoactive5"/>
+        </iq:products>
+        <iq:permissions>
+            <iq:uses-permission id="Communications"/>
+        </iq:permissions>
+    </iq:application>
+</iq:manifest>
