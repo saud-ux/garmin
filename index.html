@@ -87,6 +87,8 @@ nav button[aria-current="page"]{background:var(--line);color:var(--tx);font-weig
 textarea.inp{height:180px;padding:12px 14px;line-height:1.6;direction:rtl}
 .note{background:#1B2114;border:1px solid #3B4A22;color:#D5E8A8;border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.7}
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -94,6 +96,9 @@ textarea.inp{height:180px;padding:12px 14px;line-height:1.6;direction:rtl}
 <script>
 (function(){
 var KEY='refapp.v1';
+var FUSER='saud';
+var FIREBASE_CONFIG={apiKey:"AIzaSyCXJdmq1_KOXuZYJTcLnWlyAtduOREUrbs",authDomain:"garmin-c3b62.firebaseapp.com",projectId:"garmin-c3b62",storageBucket:"garmin-c3b62.firebasestorage.app",messagingSenderId:"493844111194",appId:"1:493844111194:web:3a8773a0e3782ee64f5d63"};
+var fdb=null;var fbReady=false;
 var COLORS=[['red','أحمر','#E5484D'],['blue','أزرق','#3E8EF7'],['yellow','أصفر','#F5D442'],['green','أخضر','#2FA866'],['white','أبيض','#F2F5F3'],['black','أسود','#2B2B2B'],['orange','برتقالي','#F08A3C'],['purple','بنفسجي','#8E6BE8']];
 var ROLES=[['ar1','مساعد أول'],['ar2','مساعد ثانٍ']];
 var KINDS=[['goal','هدف'],['yellow','صفراء'],['red','حمراء'],['sub','تبديل'],['stop','توقف إصابة']];
@@ -109,6 +114,28 @@ function load(){
 var db=load();
 var stored=true;
 function save(){try{localStorage.setItem(KEY,JSON.stringify(db));stored=true;}catch(e){stored=false;}}
+function fbWriteMatch(m){if(!fdb||!m)return;fdb.doc('users/'+FUSER+'/matches/'+m.id).set(m).catch(function(e){console.error('FB write:',e);});}
+function fbDeleteMatch(id){if(!fdb)return;fdb.doc('users/'+FUSER+'/matches/'+id).delete().catch(function(e){console.error('FB del:',e);});}
+function fbInit(){
+  try{
+    if(typeof firebase==='undefined')return;
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fdb=firebase.firestore();
+    fdb.collection('users/'+FUSER+'/matches').onSnapshot(function(snap){
+      snap.docChanges().forEach(function(ch){
+        var m=ch.doc.data();
+        if(ch.type==='added'||ch.type==='modified'){
+          var found=false;
+          for(var i=0;i<db.matches.length;i++){if(db.matches[i].id===m.id){db.matches[i]=m;found=true;break;}}
+          if(!found)db.matches.push(m);
+        }else if(ch.type==='removed'){
+          db.matches=db.matches.filter(function(x){return x.id!==ch.doc.id;});
+        }
+      });
+      fbReady=true;save();render();
+    },function(e){console.error('FB sync:',e);});
+  }catch(e){console.error('FB init:',e);}
+}
 var ui={view:'home',matchId:null,filter:'all',draft:null,ev:null,confirmDel:false,reportText:null,err:''};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function hex(id){for(var i=0;i<COLORS.length;i++)if(COLORS[i][0]===id)return COLORS[i][2];return '#888';}
@@ -152,7 +179,7 @@ function matchItem(m){
 function vHome(){
   var n=nextMatch(),done=db.matches.filter(function(m){return m.status==='done';});
   var y=0,r=0;db.matches.forEach(function(m){y+=count(m,'yellow');r+=count(m,'red');});
-  var h='<div class="row"><div><div class="mut" style="font-size:14px">لوحة الحكم</div><h1>مبارياتي</h1></div><button class="pill" data-act="nav" data-v="watch"><span class="dot"></span>الساعة غير مربوطة</button></div>';
+  var h='<div class="row"><div><div class="mut" style="font-size:14px">لوحة الحكم</div><h1>مبارياتي</h1></div>'+(fbReady?'<button class="pill" data-act="nav" data-v="watch"><span class="dot" style="background:var(--acc)"></span>Firebase مربوطة</button>':'<button class="pill" data-act="nav" data-v="watch"><span class="dot"></span>Firebase غير مربوطة</button>')+'</div>';
   if(!stored)h+='<div class="note">التخزين غير متاح في هذا المتصفح، فالبيانات تبقى حتى إغلاق الصفحة فقط.</div>';
   if(n){
     h+='<div class="hero"><div class="row"><span class="sm" style="font-weight:600;color:var(--acc)">المباراة القادمة</span><span class="sm mut">'+esc(fmtDate(n.date))+'</span></div>'+teamsRow(n,false)+
@@ -267,8 +294,8 @@ function vPerf(){
 function sw(k,label,hint){var on=!!db.settings[k];return '<div class="li" style="min-height:60px"><span style="display:flex;flex-direction:column"><span>'+label+'</span><span class="xs mut">'+hint+'</span></span><button class="sw" role="switch" aria-checked="'+on+'" aria-label="'+label+'" data-act="set" data-k="'+k+'"><i></i></button></div>';}
 function vWatch(){
   var s=db.settings;
-  return '<h1>الساعة</h1><div class="hero"><div style="display:flex;align-items:center;gap:14px"><div aria-hidden="true" class="num" style="width:56px;height:56px;border-radius:50%;border:3px solid #3A443E;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--mut)">'+s.half+':00</div><div><div style="font-size:17px;font-weight:600;direction:ltr;text-align:right">vívoactive 5</div><div class="sm mut" style="display:flex;align-items:center;gap:6px"><span class="dot"></span>غير مربوطة بعد</div></div></div>'+
-  '<div class="note">الربط يُفعَّل بعد بناء تطبيق الساعة. الإعدادات أدناه محفوظة وستُرسل للساعة عند الربط.</div></div>'+
+  return '<h1>الساعة</h1><div class="hero"><div style="display:flex;align-items:center;gap:14px"><div aria-hidden="true" class="num" style="width:56px;height:56px;border-radius:50%;border:3px solid #3A443E;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--mut)">'+s.half+':00</div><div><div style="font-size:17px;font-weight:600;direction:ltr;text-align:right">vívoactive 5</div><div class="sm mut" style="display:flex;align-items:center;gap:6px">'+(fbReady?'<span class="dot" style="background:var(--acc)"></span>Firebase مربوطة':'<span class="dot"></span>Firebase غير مربوطة')+'</div></div></div>'+
+  '<div class="note">'+(fbReady?'Firebase مربوطة — البيانات تُزامَن مع الساعة فوراً.':'الربط يُفعَّل بعد بناء تطبيق الساعة. الإعدادات محفوظة وستُرسل للساعة عند الربط.')+'</div></div>'+
   '<div class="col"><p class="sec">تنبيهات الساعة</p><div class="list">'+sw('end','اهتزاز عند نهاية الوقت الأصلي','عند نهاية كل شوط')+sw('added','اهتزاز عند نهاية بدل الضائع','بعد الدقائق المضافة')+sw('brkAlert','تنبيه قبل نهاية الاستراحة','قبل دقيقتين')+sw('second','صفراء ثانية = طرد تلقائي','لنفس رقم اللاعب')+sw('gps','تسجيل التحركات','خريطة حرارية ومسافة')+'</div></div>'+
   '<div class="col"><p class="sec">الإعدادات الافتراضية</p><div class="list">'+
   '<div class="li"><span>مدة الشوط</span><div class="step"><button aria-label="إنقاص مدة الشوط" data-act="sstep" data-k="half" data-d="-5">−</button><input type="number" class="step-inp num" data-act="sstep-inp" data-k="half" value="'+s.half+'" min="1" max="120" aria-label="مدة الشوط"><span class="mut sm">د</span><button aria-label="زيادة مدة الشوط" data-act="sstep" data-k="half" data-d="5">+</button></div></div>'+
@@ -298,7 +325,7 @@ document.addEventListener('click',function(ev){
     if(!d.home.trim()||!d.away.trim()){ui.err='اكتب اسم الفريقين أولاً.';return render();}
     if(d.hc===d.ac){ui.err='اختر لونين مختلفين للفريقين.';return render();}
     var nm={id:uid(),home:{name:d.home.trim(),color:d.hc},away:{name:d.away.trim(),color:d.ac},half:d.half,brk:d.brk,et:d.et,pk:d.pk,date:d.date,comp:d.comp.trim(),venue:d.venue.trim(),role:d.role,status:'upcoming',events:[],added1:0,added2:0};
-    db.matches.push(nm);save();ui.draft=null;toast('حُفظت المباراة');return go('match',nm.id);
+    db.matches.push(nm);save();fbWriteMatch(nm);ui.draft=null;toast('حُفظت المباراة');return go('match',nm.id);
   }
   if(a==='set'){db.settings[b.dataset.k]=!db.settings[b.dataset.k];save();return render();}
   if(a==='sstep'){var sk=b.dataset.k;db.settings[sk]=clamp(db.settings[sk]+(+b.dataset.d),1,120);save();return render();}
@@ -321,10 +348,10 @@ document.addEventListener('click',function(ev){
     var second=e.kind==='yellow'&&o.player&&db.settings.second&&m.events.some(function(x){return x.kind==='yellow'&&x.team===o.team&&x.player===o.player;});
     m.events.push(o);
     if(second)m.events.push({id:uid(),kind:'red',min:min,team:o.team,player:o.player,second:true,note:''});
-    save();ui.ev=null;ui.err='';toast(second?'صفراء ثانية: سُجّل الطرد تلقائياً':'أُضيف الحدث');return render();
+    save();fbWriteMatch(m);ui.ev=null;ui.err='';toast(second?'صفراء ثانية: سُجّل الطرد تلقائياً':'أُضيف الحدث');return render();
   }
-  if(a==='ev-del'){m.events=m.events.filter(function(x){return x.id!==b.dataset.id;});save();return render();}
-  if(a==='toggle-done'){m.status=m.status==='done'?'upcoming':'done';save();return render();}
+  if(a==='ev-del'){m.events=m.events.filter(function(x){return x.id!==b.dataset.id;});save();fbWriteMatch(m);return render();}
+  if(a==='toggle-done'){m.status=m.status==='done'?'upcoming':'done';save();fbWriteMatch(m);return render();}
   if(a==='copy'){
     var t=reportText(m);
     var fail=function(){ui.reportText=t;render();};
@@ -333,7 +360,7 @@ document.addEventListener('click',function(ev){
   }
   if(a==='del-ask'){ui.confirmDel=true;return render();}
   if(a==='del-no'){ui.confirmDel=false;return render();}
-  if(a==='del-yes'){db.matches=db.matches.filter(function(x){return x.id!==m.id;});save();toast('حُذفت المباراة');return go('reports',null);}
+  if(a==='del-yes'){var delId=m.id;db.matches=db.matches.filter(function(x){return x.id!==m.id;});save();fbDeleteMatch(delId);toast('حُذفت المباراة');return go('reports',null);}
 });
 document.addEventListener('change',function(ev){
   var a=ev.target.dataset&&ev.target.dataset.act;
@@ -341,7 +368,7 @@ document.addEventListener('change',function(ev){
   if(a==='sstep-inp'){var sk=ev.target.dataset.k;var v=parseInt(ev.target.value,10);if(!isNaN(v)&&v>0){db.settings[sk]=clamp(v,1,120);save();}render();return;}
   var k=ev.target.dataset&&ev.target.dataset.ch;if(!k)return;
   var m=getMatch(ui.matchId);if(!m)return;
-  m[k]=clamp(parseInt(ev.target.value,10)||0,0,30);ev.target.value=m[k];save();
+  m[k]=clamp(parseInt(ev.target.value,10)||0,0,30);ev.target.value=m[k];save();fbWriteMatch(m);
 });
 function fromHash(){
   var h=(location.hash||'').slice(1);
@@ -353,6 +380,7 @@ function fromHash(){
 window.addEventListener('hashchange',fromHash);
 save();
 fromHash();
+fbInit();
 })();
 </script>
 </body>
