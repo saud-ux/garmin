@@ -6,7 +6,7 @@
 <title>تطبيق الحكم</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
 <style>
-:root{--bg:#0E1110;--s1:#171C19;--s2:#1F2622;--line:#2A322D;--line2:#222924;--tx:#F2F5F3;--tx2:#C9D1CC;--mut:#A3ADA7;--acc:#B5F04A;--on:#10140C;--amb:#F5B841;--yel:#F5D442;--red:#FF6B5E;--blu:#5AA9FF}
+:root{--bg:#111211;--s1:#1A1C1A;--s2:#202320;--line:#2C2F2C;--line2:#252725;--tx:#E8EBE8;--tx2:#B8BCB8;--mut:#7A827A;--acc:#5C8A5C;--on:#E8EBE8;--amb:#C8963C;--yel:#C8A82A;--red:#C05A50;--blu:#4A82C0}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--tx);font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;-webkit-text-size-adjust:100%}
 body{min-height:100vh}
@@ -19,11 +19,11 @@ h2{margin:0;font-size:17px;font-weight:600}
 .num{font-variant-numeric:tabular-nums}
 .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .col{display:flex;flex-direction:column;gap:12px}
-.card{background:var(--s1);border-radius:16px;padding:14px 16px}
-.hero{background:var(--s1);border:1px solid var(--line);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--s1);border-radius:14px;padding:14px 16px}
+.hero{background:var(--s1);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 button,input,select,textarea{font-family:inherit}
-.btn{height:50px;border:0;border-radius:14px;background:var(--acc);color:var(--on);font-size:16px;font-weight:700;cursor:pointer;padding:0 16px;width:100%}
+.btn{height:50px;border:0;border-radius:14px;background:var(--acc);color:var(--on);font-size:16px;font-weight:600;cursor:pointer;padding:0 16px;width:100%;letter-spacing:.01em}
 .btn.ghost{background:var(--s1);color:var(--tx);border:1px solid var(--line);font-weight:600}
 .btn.line{background:transparent;color:var(--acc);border:1px solid var(--acc);font-weight:600}
 .btn.danger{background:transparent;color:var(--red);border:1px solid #5A2A26;font-weight:600}
@@ -39,7 +39,7 @@ button,input,select,textarea{font-family:inherit}
 .team{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;min-width:0}
 .team span.n{font-size:15px;font-weight:600;overflow-wrap:anywhere}
 .stat b{display:block;font-size:28px;font-weight:700}
-.item{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 14px;background:var(--s1);border-radius:14px;color:var(--tx);border:0;width:100%;text-align:right;cursor:pointer}
+.item{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 14px;background:transparent;border-radius:12px;color:var(--tx);border:0;border-bottom:1px solid var(--line2);width:100%;text-align:right;cursor:pointer}
 .item .t{flex:1;display:flex;flex-direction:column;min-width:0}
 .item .sc{font-size:18px;font-weight:700;direction:ltr}
 .empty{background:var(--s1);border:1px dashed var(--line);border-radius:16px;padding:22px 16px;text-align:center;color:var(--mut);font-size:14px;line-height:1.7}
@@ -60,8 +60,8 @@ button,input,select,textarea{font-family:inherit}
 .seg{display:grid;gap:8px}
 .seg.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .seg.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
-.seg button{min-height:48px;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;background:var(--s1);color:var(--tx);border:1px solid var(--line);padding:4px 6px}
-.seg button[aria-pressed="true"]{background:var(--acc);color:var(--on);border-color:var(--acc)}
+.seg button{min-height:44px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;background:transparent;color:var(--mut);border:1px solid transparent;padding:4px 6px}
+.seg button[aria-pressed="true"]{background:var(--s2);color:var(--tx);border-color:var(--line);font-weight:600}
 .tabs{display:flex;gap:6px;flex-wrap:wrap}
 .tabs button{height:44px;padding:0 14px;border-radius:22px;font-size:13px;font-weight:600;cursor:pointer;background:var(--s1);color:var(--tx2);border:1px solid var(--line)}
 .tabs button[aria-pressed="true"]{background:var(--tx);color:var(--on)}
