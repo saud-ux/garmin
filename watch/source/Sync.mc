@@ -1,6 +1,7 @@
 import Toybox.Lang;
 import Toybox.Communications;
 import Toybox.System;
+import Toybox.PersistedContent;
 
 // Firebase Firestore REST sync. Same project/key as the website.
 // Web API keys are not secrets; access is governed by Firestore rules.
@@ -123,7 +124,7 @@ class Sync {
         Communications.makeWebRequest(url, body, options, method(:onPush));
     }
 
-    function onPush(code, data) {
+    function onPush(code as Lang.Number, data as Null or Lang.ByteArray or Lang.Dictionary or Lang.String or PersistedContent.Iterator) as Void {
         if (code != 200) {
             System.println("FB push failed: " + code);
         }
@@ -140,13 +141,16 @@ class Sync {
         Communications.makeWebRequest(url, { "key" => API_KEY }, options, method(:onFetch));
     }
 
-    function onFetch(code, data) {
+    function onFetch(code as Lang.Number, data as Null or Lang.ByteArray or Lang.Dictionary or Lang.String or PersistedContent.Iterator) as Void {
         var list = [];
-        if (code == 200 && data != null && data.hasKey("documents")) {
-            var docs = data["documents"];
-            for (var i = 0; i < docs.size(); i++) {
-                var m = decodeMatch(docs[i]);
-                if (m != null) { list.add(m); }
+        if (code == 200 && data instanceof Lang.Dictionary) {
+            var dd = data as Lang.Dictionary;
+            if (dd.hasKey("documents")) {
+                var docs = dd["documents"] as Lang.Array;
+                for (var i = 0; i < docs.size(); i++) {
+                    var m = decodeMatch(docs[i]);
+                    if (m != null) { list.add(m); }
+                }
             }
         }
         if (_fetchCb != null) {
