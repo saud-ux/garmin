@@ -727,10 +727,16 @@ function parseAssign(raw){
   lines.forEach(function(l){if(/\u0627\u0644\u0645\u0644\u0639\u0628/.test(l)&&!out.venue){var v=l.replace(/.*\u0627\u0644\u0645\u0644\u0639\u0628/,'').replace(/\u0631\u0642\u0645\s*\u0627\u0644\u0645\u0628\u0627\u0631\u0627\u0647.*/,'').replace(/[0-9|_.#]/g,'').trim().replace(/\s[^\s]{1,3}$/,'').trim();if(v.length>2)out.venue=v;}});
   var ci=-1;lines.forEach(function(l,i){if(/\u0627\u0644\u0645\u0633\u0627\u0628\u0642\u0647/.test(l)||/\u0627\u0644\u0645\u0633\u0627\u0628\u0642\u0629/.test(l))ci=i;});
   if(ci>=0){var parts=[];if(ci>0&&/\u0628\u0637\u0648\u0644|\u062F\u0648\u0631\u064A|\u0643\u0623\u0633|\u062F\u0631\u062C\u0647|\u062F\u0631\u062C\u0629/.test(lines[ci-1]))parts.push(lines[ci-1]);parts.push(lines[ci].replace(/.*\u0627\u0644\u0645\u0633\u0627\u0628\u0642[\u0647\u0629]/,'').replace(/\u0627\u0644\u062F\u0648\u0631.*/,''));if(ci+1<lines.length&&/\u0633\u0646\u0647|\u0633\u0646\u0629|\u062A\u062D\u062A|\u062F\u0631\u062C/.test(lines[ci+1]))parts.push(lines[ci+1].replace(/\u0627\u0644\u062F\u0648\u0631.*/,''));out.comp=parts.join(' ').replace(/[|_#]/g,'').replace(/\s+/g,' ').trim();}
-  var head=[];for(var i=0;i<lines.length;i++){if(/\d{4}-\d|\d{1,2}:\d{2}|\u0627\u0644\u062A\u0627\u0631\u064A\u062E|\u0627\u0644\u0648\u0642\u062A/.test(lines[i]))break;head.push(lines[i]);}
-  var toks=head.join(' ').split(/[\s|_#]+/),cand=[],seen={};
   var LBLBLOB='\u0627\u0644\u0641\u0631\u064A\u0642\u0627\u0644\u0627\u0648\u0644\u0627\u0644\u062B\u0627\u0646\u064A\u0627\u0644\u0645\u0633\u0627\u0639\u062F';
-  toks.forEach(function(w){var n=anorm(w);if(n.length<3||isLbl(n)||LBLBLOB.indexOf(n)>=0)return;var c=bestClub(w);if(c===null){if(n.length<4)return;c=n;}if(!seen[anorm(c)]){seen[anorm(c)]=1;cand.push(c);}});
+  var FILLER=('\u0628\u0637\u0648\u0644\u0647 \u0627\u0644\u0645\u0645\u0644\u0643\u0647 \u0644\u0644\u062F\u0631\u062C\u0647 \u0627\u0644\u062B\u0627\u0646\u064A\u0647 \u0627\u0644\u0627\u0648\u0644\u064A \u062A\u062D\u062A \u0633\u0646\u0647 \u0645\u0644\u0639\u0628 \u0646\u0627\u062F\u064A \u0645\u062F\u064A\u0646\u0647 \u0627\u0644\u0631\u064A\u0627\u0636\u064A\u0647 \u0631\u064A\u0627\u0636\u064A \u0643\u0627\u0633 \u062F\u0648\u0631\u064A \u062F\u0631\u062C\u0647 \u062A\u0643\u0644\u064A\u0641 \u0627\u0644\u0645\u0628\u0627\u0631\u0627\u0647 \u0631\u0642\u0645 \u0627\u0644\u0648\u0642\u062A \u0627\u0644\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0645\u0633\u0627\u0628\u0642\u0647 \u0627\u0644\u062F\u0648\u0631 \u0627\u0644\u0633\u0627\u0639\u0647').split(' ');
+  function teamToks(src){
+    var toks=src.join(' ').split(/[\s|_#().,]+/),c=[],seen={};
+    for(var j=0;j<toks.length;j++){var n=anorm(toks[j]);if(n.length<3||isLbl(n)||LBLBLOB.indexOf(n)>=0||FILLER.indexOf(n)>=0)continue;var cc=bestClub(toks[j]);if(cc==null){if(n.length<4)continue;cc=n;}if(!seen[anorm(cc)]){seen[anorm(cc)]=1;c.push(cc);}}
+    return c;
+  }
+  var head=[];for(var i=0;i<lines.length;i++){if(/\d{4}-\d|\d{1,2}:\d{2}|\u0627\u0644\u062A\u0627\u0631\u064A\u062E|\u0627\u0644\u0648\u0642\u062A|\u0627\u0644\u0645\u0644\u0639\u0628|\u0627\u0644\u0645\u0633\u0627\u0628\u0642|\u0627\u0644\u062F\u0648\u0631/.test(lines[i]))break;head.push(lines[i]);}
+  var cand=teamToks(head);
+  if(cand.length<2){var tl=lines.filter(function(l){return !/\u0627\u0644\u0645\u0644\u0639\u0628|\u0627\u0644\u0645\u0633\u0627\u0628\u0642|\u0627\u0644\u062F\u0648\u0631|\u0627\u0644\u062A\u0627\u0631\u064A\u062E|\u0627\u0644\u0648\u0642\u062A|\u0627\u0644\u0633\u0627\u0639\u0647|\u0631\u0642\u0645/.test(l);});cand=teamToks(tl);}
   if(cand[0])out.home=cand[0];if(cand[1])out.away=cand[1];
   out.raw=t;return out;
 }
