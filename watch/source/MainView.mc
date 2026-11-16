@@ -113,7 +113,7 @@ class MainView extends WatchUi.View {
         }
 
         // phase label
-        dc.setColor(m.addedRunning ? Theme.AMBER : Theme.MUTED, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(m.addedRunning ? Theme.AMBER : Theme.HOME, Graphics.COLOR_TRANSPARENT);
         var label = m.phase.equals("1st") ? "الشوط الأول" : "الشوط الثاني";
         dc.drawText(cx, h * 0.20, Graphics.FONT_XTINY,
             m.addedRunning ? "بدل الضائع" : label, Graphics.TEXT_JUSTIFY_CENTER);
@@ -135,7 +135,7 @@ class MainView extends WatchUi.View {
             drawScore(dc, cx, scoreY, m);
         } else {
             drawScore(dc, cx, scoreY, m);
-            dc.setColor(Theme.DIM, Graphics.COLOR_TRANSPARENT);
+            dc.setColor(Theme.SUB, Graphics.COLOR_TRANSPARENT);
             dc.drawText(cx, h * 0.84, Graphics.FONT_XTINY, m.homeName + " · " + m.awayName,
                 Graphics.TEXT_JUSTIFY_CENTER);
         }
@@ -181,9 +181,10 @@ class MainView extends WatchUi.View {
         dc.setColor(Theme.MUTED, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, h * 0.20, Graphics.FONT_TINY, "انتهت المباراة", Graphics.TEXT_JUSTIFY_CENTER);
         drawScore(dc, cx, h * 0.46, m);
-        dc.setColor(Theme.DIM, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(Theme.SUB, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, h * 0.63, Graphics.FONT_XTINY, m.homeName + " · " + m.awayName,
             Graphics.TEXT_JUSTIFY_CENTER);
+        dc.setColor(Theme.MUTED, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, h * 0.77, Graphics.FONT_XTINY, "الزر السفلي: مباراة جديدة",
             Graphics.TEXT_JUSTIFY_CENTER);
     }
@@ -192,17 +193,20 @@ class MainView extends WatchUi.View {
     function drawNotification(dc, w, h, cx, m) {
         if (notifKind.equals("goal")) {
             dc.setColor(Theme.accent(notifTeam), Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, h * 0.22, Graphics.FONT_SMALL, "هدف", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, h * 0.22, Graphics.FONT_SMALL, "هدف",
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             drawTwoNumbers(dc, w, h, cx);
             dc.setColor(Theme.SUB, Graphics.COLOR_TRANSPARENT);
             dc.drawText(cx, h * 0.82, Graphics.FONT_SMALL, teamOnly(m), Graphics.TEXT_JUSTIFY_CENTER);
         } else if (notifKind.equals("yellow") || notifKind.equals("red")) {
             var isRed = notifKind.equals("red");
             var c = isRed ? Theme.RED : Theme.YELLOW;
-            dc.setColor(c, Graphics.COLOR_TRANSPARENT);
-            dc.fillRoundedRectangle(cx - 8, (h * 0.14).toNumber(), 16, 22, 3);
             var lbl = notifSecond ? "صفراء ثانية · طرد" : (isRed ? "بطاقة حمراء" : "بطاقة صفراء");
-            dc.drawText(cx, h * 0.31, Graphics.FONT_XTINY, lbl, Graphics.TEXT_JUSTIFY_CENTER);
+            dc.setColor(c, Graphics.COLOR_TRANSPARENT);
+            var lw = dc.getTextWidthInPixels(lbl, Graphics.FONT_SMALL);
+            dc.fillRoundedRectangle((cx + lw / 2 + 9).toNumber(), (h * 0.22 - 9).toNumber(), 13, 18, 3);
+            dc.drawText(cx - 6, h * 0.22, Graphics.FONT_SMALL, lbl,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             drawTwoNumbers(dc, w, h, cx);
             dc.setColor(Theme.SUB, Graphics.COLOR_TRANSPARENT);
             dc.drawText(cx, h * 0.82, Graphics.FONT_SMALL, teamOnly(m), Graphics.TEXT_JUSTIFY_CENTER);
