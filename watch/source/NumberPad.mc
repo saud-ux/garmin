@@ -42,27 +42,17 @@ class NumberPad extends WatchUi.View {
                 var n = value.length() > 0 ? value.toNumber() : 0;
                 m.setAddedTime(n);
                 if (gMainView != null) {
-                    gMainView.showToast("الوقت الإضافي +" + n.toString());
+                    gMainView.showAdded(n);
                 }
             } else {
-                var min = m.currentMinute();
+                var minVal = m.currentMinute();
                 var second = m.addEvent(kind, team, value, "");
                 if (gMainView != null) {
-                    gMainView.showToast(toastFor(m, min, second));
+                    gMainView.showEvent(kind, team, value, minVal, second);
                 }
             }
         }
         WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-
-    function toastFor(m, min, second) {
-        if (second) {
-            return m.teamName(team) + " · صفراء ثانية · طرد · " + min.toString() + "'";
-        }
-        var label = kind.equals("goal") ? "هدف" :
-                    (kind.equals("yellow") ? "بطاقة صفراء" : "بطاقة حمراء");
-        var who = value.length() > 0 ? " #" + value : "";
-        return m.teamName(team) + " · " + label + who + " · " + min.toString() + "'";
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
@@ -73,7 +63,7 @@ class NumberPad extends WatchUi.View {
         dc.clear();
 
         // title + current value
-        dc.setColor(Theme.MUTED, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(mode.equals("added") ? Theme.AMBER : Theme.MUTED, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, h * 0.07, Graphics.FONT_XTINY, title, Graphics.TEXT_JUSTIFY_CENTER);
         dc.setColor(Theme.TXT, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, h * 0.15, Graphics.FONT_SMALL,
@@ -111,8 +101,8 @@ class NumberPad extends WatchUi.View {
     function drawKey(dc, x, y, cw, ch, label, action) {
         var bg = Theme.KEYBG;
         var fg = Theme.TXT;
-        if (action.equals("done")) { bg = 0x1F261F; fg = 0x8FC98F; }
-        else if (action.equals("clear")) { bg = 0x2A1F1F; fg = Theme.MUTED; }
+        if (action.equals("done")) { bg = Theme.KEY_DONE; fg = Theme.HOME; }
+        else if (action.equals("clear")) { bg = Theme.KEY_CLEAR; fg = Theme.MUTED; }
         dc.setColor(bg, Graphics.COLOR_TRANSPARENT);
         dc.fillRoundedRectangle(x, y, cw, ch, 8);
         dc.setColor(fg, Graphics.COLOR_TRANSPARENT);

@@ -25,10 +25,10 @@ class RefereeApp extends Application.AppBase {
         }
     }
 
-    // First screen: setup / kickoff selection.
+    // First screen: match chooser (never auto-selects).
     function getInitialView() {
-        var view = new SetupView();
-        return [ view, new SetupDelegate(view) ];
+        var view = new MatchListView();
+        return [ view, new MatchListDelegate() ];
     }
 }
 
