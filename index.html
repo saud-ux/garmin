@@ -111,6 +111,10 @@ nav button[aria-current="page"]{background:var(--acc2);color:var(--acc);font-wei
 #toast{position:fixed;left:50%;bottom:104px;transform:translate(-50%,12px);background:var(--ink);color:#F4F5F1;padding:11px 18px;border-radius:14px;font-size:14px;font-weight:500;max-width:88vw;text-align:center;opacity:0;pointer-events:none;transition:opacity .22s,transform .28s var(--ease);z-index:60}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 #toast.top{bottom:auto;top:64px}
+[data-swipe]{touch-action:pan-y;-webkit-touch-callout:none}
+#undo{position:fixed;left:50%;bottom:104px;transform:translate(-50%,12px);display:flex;align-items:center;gap:14px;background:var(--ink);color:#F4F5F1;padding:9px 10px 9px 18px;border-radius:14px;font-size:14px;font-weight:500;max-width:88vw;opacity:0;pointer-events:none;transition:opacity .22s,transform .28s var(--ease);z-index:61}
+#undo.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#undo button{background:#F4F5F1;color:var(--ink);border:0;border-radius:10px;padding:7px 15px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
 textarea.inp{height:200px;padding:12px 14px;line-height:1.7;direction:rtl;resize:none}
 .note{background:var(--amb2);border:1px solid #EFD9A8;color:#6B4A12;border-radius:16px;padding:12px 14px;font-size:13px;line-height:1.7}
 .banner{display:flex;align-items:center;gap:12px;background:var(--red2);border:1px solid #F1C9C4;border-radius:18px;padding:12px 14px;cursor:pointer;width:100%;text-align:right;color:var(--tx)}
@@ -178,6 +182,7 @@ main.enter .gbar{transform-origin:bottom;transform-box:fill-box;animation:grow .
 <body>
 <div id="app"></div>
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="undo"><span id="undo-t"></span><button id="undo-b" data-act="undo-do">تراجع</button></div>
 <script>
 (function(){
 'use strict';
@@ -297,6 +302,79 @@ function wake(){try{if(navigator.wakeLock)navigator.wakeLock.request('screen').t
 function unwake(){try{if(wl){wl.release();wl=null;}}catch(e){}}
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&ui.view==='live')wake();});
 
+/* ---------- swipe + undo + long-press ---------- */
+var pendingUndo=null,undoT=null;
+function showUndo(txt){var u=document.getElementById('undo');document.getElementById('undo-t').textContent=txt;u.classList.add('on');clearTimeout(undoT);undoT=setTimeout(hideUndo,5200);}
+function hideUndo(){var u=document.getElementById('undo');if(u)u.classList.remove('on');pendingUndo=null;}
+function deleteMatchWithUndo(id){
+  var idx=-1,obj=null;for(var i=0;i<db.matches.length;i++){if(db.matches[i].id===id){idx=i;obj=db.matches[i];break;}}
+  if(!obj)return;
+  pendingUndo={match:JSON.parse(JSON.stringify(obj)),idx:idx};
+  db.matches.splice(idx,1);save();fbDeleteMatch(id);vib(30);
+  if(ui.view==='match'||ui.view==='live')go('reports',null);else render();
+  showUndo('حُذفت المباراة');
+}
+function undoDelete(){
+  if(!pendingUndo)return;var p=pendingUndo;pendingUndo=null;clearTimeout(undoT);
+  db.matches.splice(Math.min(p.idx,db.matches.length),0,p.match);save();fbWriteMatch(p.match);
+  var u=document.getElementById('undo');if(u)u.classList.remove('on');render();toast('تم التراجع');
+}
+function deleteEvent(eid){var m=getMatch(ui.matchId);if(!m)return;m.events=m.events.filter(function(x){return x.id!==eid;});save();fbWriteMatch(m);vib(30);render();toast('حُذف الحدث');}
+function repeatMatch(m){
+  var d=newDraft();d.home=m.home.name;d.away=m.away.name;d.hc=m.home.color;d.ac=m.away.color;
+  d.tpl=m.tpl;d.half=m.half;d.brk=m.brk;d.subs=m.subs;d.et=!!m.et;d.pk=!!m.pk;d.comp=m.comp||'';d.venue=m.venue||'';d.role=m.role||'ar1';
+  ui.draft=d;go('new');toast('نفس الفريقين — عدّل التاريخ واحفظ');
+}
+var gS=null,suppressClick=false,supT=null;
+document.addEventListener('click',function(e){if(suppressClick){suppressClick=false;clearTimeout(supT);e.stopPropagation();e.preventDefault();}},true);
+function armSuppress(){suppressClick=true;clearTimeout(supT);supT=setTimeout(function(){suppressClick=false;},8000);}
+function gEl(t){return t&&t.closest?t.closest('[data-swipe]'):null;}
+function gReset(){if(!gS)return;clearTimeout(gS.lp);if(gS.el){gS.el.style.transition='transform .2s,opacity .2s';gS.el.style.transform='';gS.el.style.opacity='';}gS=null;}
+document.addEventListener('pointerdown',function(e){
+  if(e.pointerType==='mouse'&&e.button!==0)return;
+  if(ui.sheet)return;
+  var el=gEl(e.target);if(!el)return;
+  if(e.target.closest&&e.target.closest('[data-act="ev-del"]'))return;
+  gS={el:el,x:e.clientX,y:e.clientY,id:el.dataset.id,kind:el.dataset.swipe,axis:null,moved:false,lp:null};
+  if(el.dataset.swipe==='m'){
+    gS.lp=setTimeout(function(){
+      if(!gS||gS.moved)return;var id=gS.id;gReset();armSuppress();vib(40);
+      ui.sheet={type:'rowmenu',mid:id};sheetAnim=true;render();
+    },480);
+  }
+},{passive:true});
+document.addEventListener('pointermove',function(e){
+  if(!gS)return;var dx=e.clientX-gS.x,dy=e.clientY-gS.y;
+  if(gS.axis===null){
+    if(Math.abs(dx)<8&&Math.abs(dy)<8)return;
+    gS.axis=Math.abs(dx)>Math.abs(dy)?'x':'y';
+    if(gS.axis==='x'){gS.moved=true;clearTimeout(gS.lp);gS.el.style.transition='none';}
+    else{gReset();return;}
+  }
+  if(gS.axis==='x'){
+    if(e.cancelable)e.preventDefault();
+    var o=Math.max(-170,Math.min(170,dx));gS.el.style.transform='translateX('+o+'px)';
+    gS.el.style.opacity=(1-Math.min(Math.abs(o)/280,.55)).toFixed(2);
+  }
+},{passive:false});
+document.addEventListener('pointerup',function(e){
+  if(!gS)return;var g=gS,dx=e.clientX-g.x;clearTimeout(g.lp);
+  if(g.axis==='x'){
+    var w=g.el.offsetWidth||260,hit=Math.abs(dx)>Math.max(80,w*0.32);armSuppress();
+    if(hit){
+      g.el.style.transition='transform .18s,opacity .18s';g.el.style.transform='translateX('+(dx>0?1:-1)*w+'px)';g.el.style.opacity='0';
+      var id=g.id,kind=g.kind;gS=null;
+      setTimeout(function(){if(kind==='m')deleteMatchWithUndo(id);else deleteEvent(id);},140);
+      return;
+    }
+    g.el.style.transition='transform .2s,opacity .2s';g.el.style.transform='';g.el.style.opacity='';
+    /* snap back */
+  }
+  gS=null;
+});
+document.addEventListener('pointercancel',gReset);
+document.addEventListener('pointerup',function(){if(suppressClick){clearTimeout(supT);supT=setTimeout(function(){suppressClick=false;},80);}});
+
 /* ---------- shared pieces ---------- */
 function teamsRow(m,withScore){
   var s=score(m);
@@ -308,7 +386,7 @@ function tplName(id){for(var i=0;i<db.templates.length;i++)if(db.templates[i].id
 function statusLabel(m){return isLive(m)?'جارية':m.status==='done'?'منتهية':'قادمة';}
 function matchItem(m){
   var s=score(m);
-  return '<button class="item" data-act="open" data-id="'+m.id+'"><span style="display:flex;gap:4px"><span class="bar" style="background:'+hex(m.home.color)+'"></span><span class="bar" style="background:'+hex(m.away.color)+'"></span></span>'+
+  return '<button class="item" data-act="open" data-swipe="m" data-id="'+m.id+'"><span style="display:flex;gap:4px"><span class="bar" style="background:'+hex(m.home.color)+'"></span><span class="bar" style="background:'+hex(m.away.color)+'"></span></span>'+
   '<span class="t"><span style="font-size:15px;font-weight:600">'+esc(m.home.name)+' × '+esc(m.away.name)+'</span><span class="xs mut">'+esc(fmtDate(m.date))+' · '+statusLabel(m)+'</span></span>'+
   '<span class="sc rnum">'+(m.status==='done'||m.events.length?s[0]+' – '+s[1]:'—')+'</span></button>';
 }
@@ -486,7 +564,7 @@ function vMatch(){
   h+=perfCard(m);
   if(ui.ev)h+=evForm(m);else h+='<button class="btn line" data-act="ev-new">+ تسجيل حدث يدويًا</button>';
   h+='<div class="col" style="gap:10px"><div class="row"><h2>الأحداث</h2><div class="tabs">'+[['all','الكل'],['goal','أهداف'],['card','بطاقات']].map(function(f){return '<button aria-pressed="'+(ui.filter===f[0])+'" data-act="filter" data-f="'+f[0]+'">'+f[1]+'</button>';}).join('')+'</div></div>';
-  if(shown.length)h+='<div class="list">'+shown.map(function(e){var v=evView(m,e);return '<div class="ev"><span class="m num">'+evMin(e)+'</span><span class="mk" aria-hidden="true" style="background:'+v.mark+';border-radius:'+v.rad+'"></span><span class="t"><span style="font-size:15px;font-weight:600">'+v.title+'</span><span class="xs mut">'+esc(v.detail)+'</span></span>'+evHr(m,e)+'<span aria-hidden="true" style="width:8px;height:24px;border-radius:3px;background:'+v.color+'"></span><button class="del" aria-label="حذف الحدث" data-act="ev-del" data-id="'+e.id+'">×</button></div>';}).join('')+'</div>';
+  if(shown.length)h+='<div class="list">'+shown.map(function(e){var v=evView(m,e);return '<div class="ev" data-swipe="e" data-id="'+e.id+'"><span class="m num">'+evMin(e)+'</span><span class="mk" aria-hidden="true" style="background:'+v.mark+';border-radius:'+v.rad+'"></span><span class="t"><span style="font-size:15px;font-weight:600">'+v.title+'</span><span class="xs mut">'+esc(v.detail)+'</span></span>'+evHr(m,e)+'<span aria-hidden="true" style="width:8px;height:24px;border-radius:3px;background:'+v.color+'"></span><button class="del" aria-label="حذف الحدث" data-act="ev-del" data-id="'+e.id+'">×</button></div>';}).join('')+'</div>';
   else h+='<div class="empty">'+(m.events.length?'لا توجد أحداث بهذا التصنيف.':'لم يُسجَّل أي حدث بعد.')+'</div>';
   h+='</div><button class="btn ink" data-act="share">مشاركة التقرير</button>'+
   '<button class="btn ghost" data-act="toggle-done">'+(m.status==='done'?'إعادة فتح المباراة':'إنهاء المباراة')+'</button>';
@@ -642,6 +720,13 @@ function vSheet(){
     '<div class="li"><span>أشواط إضافية</span><button class="sw" role="switch" aria-checked="'+!!t.et+'" aria-label="أشواط إضافية" data-act="tset" data-k="et"><i></i></button></div>'+
     '<div class="li"><span>ركلات ترجيح</span><button class="sw" role="switch" aria-checked="'+!!t.pk+'" aria-label="ركلات ترجيح" data-act="tset" data-k="pk"><i></i></button></div></div>'+
     '<div class="err" role="alert">'+esc(ui.err)+'</div><button class="btn" data-act="tpl-save">حفظ القالب</button>'+(sh.isNew?'':'<button class="btn danger" data-act="tpl-del">حذف القالب</button>');
+  }else if(sh.type==='rowmenu'){
+    var rm=getMatch(sh.mid);
+    h='<div class="row"><h2 style="font-size:17px">'+esc(rm?rm.home.name+' × '+rm.away.name:'المباراة')+'</h2><button class="link mut" data-act="sheet-close">إغلاق</button></div>'+
+    '<div class="col" style="gap:10px"><button class="btn" data-act="rm-open" data-id="'+sh.mid+'">فتح المباراة</button>'+
+    '<button class="btn ghost" data-act="rm-repeat" data-id="'+sh.mid+'">تكرار بنفس الفريقين</button>'+
+    (rm&&(rm.status==='done'||rm.events.length)?'<button class="btn ghost" data-act="rm-share" data-id="'+sh.mid+'">مشاركة التقرير</button>':'')+
+    '<button class="btn danger" data-act="rm-del" data-id="'+sh.mid+'">حذف المباراة</button></div>';
   }
   return '<div class="sheet-bg'+(sheetAnim?' anim':'')+'" data-act="sheet-bg"><div class="sheet" role="dialog" aria-modal="true">'+h+'</div></div>';
 }
@@ -810,8 +895,14 @@ function render(){
 
 /* ---------- actions ---------- */
 document.addEventListener('click',function(ev){
+
   var b=ev.target.closest('[data-act]');if(!b)return;
   var a=b.dataset.act,m=getMatch(ui.matchId),sh=ui.sheet,k,v,t;
+  if(a==='undo-do')return undoDelete();
+  if(a==='rm-open'){return go('match',b.dataset.id);}
+  if(a==='rm-repeat'){var rr=getMatch(b.dataset.id);ui.sheet=null;if(rr)repeatMatch(rr);return;}
+  if(a==='rm-share'){var rs=getMatch(b.dataset.id);if(rs){ui.matchId=rs.id;return openSheet({type:'share'});}return;}
+  if(a==='rm-del'){var rd=b.dataset.id;ui.sheet=null;deleteMatchWithUndo(rd);return;}
   if(a==='sheet-bg'){if(ev.target===b)closeSheet();return;}
   if(a==='sheet-close'){ui.err='';return closeSheet();}
   if(a==='nav')return go(b.dataset.v);
