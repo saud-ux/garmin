@@ -199,6 +199,7 @@ function load(){
   for(var k in DEF.settings)if(d.settings[k]===undefined)d.settings[k]=DEF.settings[k];
   if(!Array.isArray(d.templates)||d.tplV!==2){d.templates=JSON.parse(JSON.stringify(DEF_TPL));d.tplV=2;}
   if(!Array.isArray(d.clubs))d.clubs=[];
+  for(var ci=0;ci<d.matches.length;ci++){var mm=d.matches[ci];[mm.home&&mm.home.name,mm.away&&mm.away.name].forEach(function(nm){if(nm&&nm.trim()&&d.clubs.indexOf(nm.trim())<0)d.clubs.push(nm.trim());});}
   return d;
 }
 var db=load(),stored=true;
@@ -731,7 +732,7 @@ function parseAssign(raw){
   var FILLER=('\u0628\u0637\u0648\u0644\u0647 \u0627\u0644\u0645\u0645\u0644\u0643\u0647 \u0644\u0644\u062F\u0631\u062C\u0647 \u0627\u0644\u062B\u0627\u0646\u064A\u0647 \u0627\u0644\u0627\u0648\u0644\u064A \u062A\u062D\u062A \u0633\u0646\u0647 \u0645\u0644\u0639\u0628 \u0646\u0627\u062F\u064A \u0645\u062F\u064A\u0646\u0647 \u0627\u0644\u0631\u064A\u0627\u0636\u064A\u0647 \u0631\u064A\u0627\u0636\u064A \u0643\u0627\u0633 \u062F\u0648\u0631\u064A \u062F\u0631\u062C\u0647 \u062A\u0643\u0644\u064A\u0641 \u0627\u0644\u0645\u0628\u0627\u0631\u0627\u0647 \u0631\u0642\u0645 \u0627\u0644\u0648\u0642\u062A \u0627\u0644\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0645\u0633\u0627\u0628\u0642\u0647 \u0627\u0644\u062F\u0648\u0631 \u0627\u0644\u0633\u0627\u0639\u0647').split(' ');
   function teamToks(src){
     var toks=src.join(' ').split(/[\s|_#().,]+/),c=[],seen={};
-    for(var j=0;j<toks.length;j++){var n=anorm(toks[j]);if(n.length<3||isLbl(n)||LBLBLOB.indexOf(n)>=0||FILLER.indexOf(n)>=0)continue;var cc=bestClub(toks[j]);if(cc==null){if(n.length<4)continue;cc=n;}if(!seen[anorm(cc)]){seen[anorm(cc)]=1;c.push(cc);}}
+    for(var j=0;j<toks.length;j++){var n=anorm(toks[j]);if(n.length<3||isLbl(n)||LBLBLOB.indexOf(n)>=0||FILLER.indexOf(n)>=0)continue;var cc=bestClub(toks[j]);if(cc==null)continue;if(!seen[anorm(cc)]){seen[anorm(cc)]=1;c.push(cc);}}
     return c;
   }
   var head=[];for(var i=0;i<lines.length;i++){if(/\d{4}-\d|\d{1,2}:\d{2}|\u0627\u0644\u062A\u0627\u0631\u064A\u062E|\u0627\u0644\u0648\u0642\u062A|\u0627\u0644\u0645\u0644\u0639\u0628|\u0627\u0644\u0645\u0633\u0627\u0628\u0642|\u0627\u0644\u062F\u0648\u0631/.test(lines[i]))break;head.push(lines[i]);}
