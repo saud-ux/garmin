@@ -354,7 +354,7 @@ function vNew(){
   return '<div class="row"><h1>مباراة جديدة</h1><button class="link mut" data-act="nav" data-v="home">إلغاء</button></div>'+
   '<button class="btn ink" data-act="assign-pick"><span style="font-size:18px;vertical-align:-2px">\uD83D\uDCF7</span> درج صورة التكليف</button>'+
   '<input type="file" id="assign-file" accept="image/*" style="display:none">'+
-  '<p class="xs mut" style="text-align:center;margin-top:-6px">تتعبّى الحقول تلقائيًا — راجع أسماء الأندية قبل الحفظ</p>'+
+  '<p class="xs mut" style="text-align:center;margin-top:-6px">'+(geminiKey()?'قراءة ذكية مفعّلة — تتعبّى الحقول تلقائيًا':'تتعبّى الحقول تلقائيًا — راجع أسماء الأندية قبل الحفظ')+'</p>'+
   '<div class="col"><p class="sec">نوع المباراة</p><div class="seg c2">'+db.templates.map(function(t){return '<button type="button" aria-pressed="'+(d.tpl===t.id)+'" data-act="tpl-pick" data-id="'+t.id+'">'+esc(t.name)+'</button>';}).join('')+'</div></div>'+
   '<div class="col"><p class="sec">الفريقان</p>'+
   '<div class="card col"><div class="field"><label for="f-home">صاحب الأرض</label><input class="inp" id="f-home" maxlength="30" placeholder="اسم الفريق" value="'+esc(d.home)+'"></div>'+swatches('hc',d.hc)+'</div>'+
@@ -703,6 +703,7 @@ function vWatch(){
   var s=db.settings;
   return '<h1>الإعدادات</h1>'+
   '<div class="card row"><span style="display:flex;align-items:center;gap:12px"><span class="dot'+(fbReady?' on':'')+'"></span><span style="display:flex;flex-direction:column"><b>'+(fbReady?'المزامنة تعمل':'غير متصل')+'</b><span class="xs mut">'+(fbReady?'بياناتك محفوظة سحابيًا وتظهر على كل أجهزتك':'البيانات محفوظة على هذا الجهاز وتُرفع عند الاتصال')+'</span></span></span></div>'+
+  '<div class="col"><p class="sec">القراءة الذكية للتكليف</p><div class="card col"><div class="field"><label for="gk">مفتاح Google AI (مجاني)</label><input class="inp" id="gk" type="password" placeholder="الصق المفتاح هنا" value="'+(geminiKey()?'\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022':'')+'"></div><div class="grid2"><button class="btn sm2" data-act="gk-save">حفظ</button><button class="btn ghost sm2" data-act="gk-clear">مسح</button></div><p class="xs mut">'+(geminiKey()?'مفعّل \u2713 — أسماء الأندية تُقرأ بدقة.':'بدون مفتاح قد لا تُقرأ أسماء الأندية. احصل على مفتاح مجاني من aistudio.google.com/apikey والصقه هنا.')+'</p></div></div>'+
   '<div class="col"><div class="row"><p class="sec">أنواع المباريات</p><button class="link" data-act="tpl-new">+ قالب</button></div><div class="list">'+
   (db.templates.length?db.templates.map(function(t){return '<button class="li" style="background:none;border-top:0;border-right:0;border-left:0;width:100%;text-align:right;cursor:pointer;color:inherit;font:inherit" data-act="tpl-edit" data-id="'+t.id+'"><span style="font-weight:600">'+esc(t.name)+'</span><span class="sm mut"><span class="num">2×'+t.half+'</span> · استراحة <span class="num">'+t.brk+'</span> · <span class="num">'+t.subs+'</span> تبديلات'+(t.et?' · إضافي':'')+(t.pk?' · ترجيح':'')+'</span></button>';}).join(''):'<div class="li mut">لا توجد قوالب</div>')+'</div></div>'+
   '<div class="col"><p class="sec">التوقيت الافتراضي</p><div class="list">'+stepper('sstep','half',s.half,'مدة الشوط')+stepper('sstep','brk',s.brk,'الاستراحة')+'</div></div>'+
@@ -743,19 +744,50 @@ function parseAssign(raw){
 }
 function ocrShow(txt){var o=document.getElementById('ocr');if(!o){o=document.createElement('div');o.id='ocr';o.className='sheet-bg';o.innerHTML='<div class="sheet" style="align-items:center;text-align:center;gap:12px;padding-bottom:30px"><div style="font-size:30px">\uD83D\uDCF7</div><b id="ocr-t"></b><p class="xs mut">قراءة التكليف قد تأخذ لحظات في أول مرة</p></div>';document.body.appendChild(o);}document.getElementById('ocr-t').textContent=txt;}
 function ocrHide(){var o=document.getElementById('ocr');if(o)o.remove();}
+function geminiKey(){try{return localStorage.getItem('refapp.gemini')||'';}catch(e){return '';}}
+function applyAssign(a,src){
+  if(!ui.draft)ui.draft=newDraft();var d=ui.draft,got=[];
+  if(a.date){d.date=a.date;got.push('التاريخ والوقت');}
+  if(a.venue){d.venue=a.venue;got.push('الملعب');}
+  if(a.comp){d.comp=a.comp;got.push('المسابقة');}
+  if(a.role){d.role=a.role;got.push('الدور');}
+  if(a.home){d.home=a.home;}if(a.away){d.away=a.away;}
+  if(a.home||a.away)got.push('الفريق');
+  applying=true;ui.view='new';enterAnim=false;render();
+  toast(got.length?'قرأتُ: '+got.join('، ')+(src==='ai'?'':' — راجع الأسماء'):'ما قدرت أقرأ التكليف، اكتبه يدويًا');
+}
+function fileB64(file,cb){var fr=new FileReader();fr.onload=function(){var r=fr.result,i=r.indexOf(',');cb(r.slice(i+1),((r.slice(0,i).match(/data:([^;]+)/))||[])[1]||'image/jpeg');};fr.onerror=function(){cb(null);};fr.readAsDataURL(file);}
+function runAssignAI(file){
+  ocrShow('قراءة ذكية \u2026');
+  fileB64(file,function(b64,mime){
+    if(!b64){ocrHide();return toast('تعذّرت قراءة الصورة');}
+    var prompt='استخرج بيانات بطاقة تكليف حكم من الصورة وأعد JSON فقط بالمفاتيح: home (الفريق الأول / صاحب الأرض) و away (الفريق الثاني / الضيف) و venue (الملعب) و comp (المسابقة) و date (بصيغة YYYY-MM-DD) و time (بصيغة HH:MM نظام 24) و role (ضع ar1 إذا كان الدور المساعد الأول، و ar2 إذا المساعد الثاني، وإلا اتركها فارغة). اكتب أسماء الأندية بالعربية كما هي تمامًا. أي قيمة غير موجودة اجعلها نصًا فارغًا. لا تكتب أي شرح، JSON فقط.';
+    var body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{temperature:0,responseMimeType:'application/json'}};
+    fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(geminiKey()),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        ocrHide();
+        if(j&&j.error){toast('مشكلة في المفتاح: '+(j.error.message||'تأكد من المفتاح'));console.error(j.error);return;}
+        var txt='';try{txt=j.candidates[0].content.parts[0].text;}catch(e){}
+        var a={};try{a=JSON.parse(txt);}catch(e){console.error('AI parse',txt);}
+        var out={};
+        if(a.home)out.home=String(a.home).trim();
+        if(a.away)out.away=String(a.away).trim();
+        if(a.venue)out.venue=String(a.venue).trim();
+        if(a.comp)out.comp=String(a.comp).trim();
+        if(a.role==='ar1'||a.role==='ar2')out.role=a.role;
+        if(a.date){var dd=String(a.date).trim(),tt=a.time?String(a.time).trim():'';if(/^\d{4}-\d{2}-\d{2}$/.test(dd))out.date=dd+'T'+(/^\d{1,2}:\d{2}$/.test(tt)?(tt.length<5?'0'+tt:tt):'20:00');}
+        if(out.home)learnClub(out.home);if(out.away)learnClub(out.away);save();
+        applyAssign(out,'ai');
+      })
+      .catch(function(e){ocrHide();console.error(e);toast('تعذّر الاتصال بالقراءة الذكية — تأكد من النت');});
+  });
+}
 function runAssignOCR(file){
   ocrShow('جاري التحضير\u2026');
   var go2=function(){
     Tesseract.recognize(file,'ara+eng',{logger:function(m){if(m.status==='recognizing text')ocrShow('قراءة التكليف \u2026 '+Math.round(m.progress*100)+'%');}}).then(function(res){
-      ocrHide();var a=parseAssign(res.data.text||'');if(!ui.draft)ui.draft=newDraft();var d=ui.draft,got=[];
-      if(a.date){d.date=a.date;got.push('التاريخ والوقت');}
-      if(a.venue){d.venue=a.venue;got.push('الملعب');}
-      if(a.comp){d.comp=a.comp;got.push('المسابقة');}
-      if(a.role){d.role=a.role;got.push('الدور');}
-      if(a.home){d.home=a.home;}if(a.away){d.away=a.away;}
-      if(a.home||a.away)got.push('الفريق');
-      applying=true;ui.view='new';enterAnim=false;render();
-      toast(got.length?'قرأتُ: '+got.join('، ')+' — راجع الأسماء':'ما قدرت أقرأ التكليف، اكتبه يدويًا');
+      ocrHide();applyAssign(parseAssign(res.data.text||''),'ocr');
     }).catch(function(e){ocrHide();toast('تعذّرت قراءة الصورة');console.error(e);});
   };
   if(window.Tesseract)return go2();
@@ -803,6 +835,8 @@ document.addEventListener('click',function(ev){
     learnClub(nm.home.name);learnClub(nm.away.name);db.matches.push(nm);save();fbWriteMatch(nm);ui.draft=null;toast('حُفظت المباراة');return go('match',nm.id);
   }
   if(a==='demo'){ui.demo=!ui.demo;return render();}
+  if(a==='gk-save'){var gv=document.getElementById('gk').value.trim();if(gv&&gv.indexOf('\u2022')<0){try{localStorage.setItem('refapp.gemini',gv);}catch(e){}toast('حُفظ المفتاح');}return render();}
+  if(a==='gk-clear'){try{localStorage.removeItem('refapp.gemini');}catch(e){}toast('مُسح المفتاح');return render();}
   if(a==='set'){db.settings[b.dataset.k]=!db.settings[b.dataset.k];save();return render();}
   if(a==='sstep'){k=b.dataset.k;db.settings[k]=clamp(db.settings[k]+(+b.dataset.d),1,120);save();return render();}
   /* templates */
@@ -882,7 +916,7 @@ document.addEventListener('click',function(ev){
 });
 function sel(){var r=document.getElementById('rep');if(r){r.focus();r.select();toast('حدّد النص وانسخه يدويًا');}}
 document.addEventListener('change',function(ev){
-  if(ev.target.id==='assign-file'){var f=ev.target.files&&ev.target.files[0];ev.target.value='';if(f)runAssignOCR(f);return;}
+  if(ev.target.id==='assign-file'){var f=ev.target.files&&ev.target.files[0];ev.target.value='';if(f){if(geminiKey())runAssignAI(f);else runAssignOCR(f);}return;}
   var d=ev.target.dataset||{},a=d.act,k=d.k,v=parseInt(ev.target.value,10),ok=!isNaN(v)&&v>0;
   if(a==='step-inp'){syncDraft();if(ok){ui.draft[k]=clamp(v,1,120);}return render();}
   if(a==='sstep-inp'){if(ok){db.settings[k]=clamp(v,1,120);save();}return render();}
