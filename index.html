@@ -484,15 +484,18 @@ function vMatch(){
 }
 function reportText(m){
   var s=score(m),L=[],ev=evSorted(m);
-  function line(icon,kinds){var a=ev.filter(function(e){return kinds.indexOf(e.kind)>=0;});if(!a.length)return;L.push(icon+' '+a.map(function(e){var t=e.team==='home'?m.home.name:m.away.name;return evMin(e)+' '+t+(e.player?' ('+e.player+')':'')+(e.second?' صفراء ثانية':'');}).join(' · '));}
+  function tn(e){return e.team==='home'?m.home.name:m.away.name;}
+  function group(title,icon,kinds){
+    var a=ev.filter(function(e){return kinds.indexOf(e.kind)>=0;});if(!a.length)return;
+    L.push('');L.push(title+' ('+a.length+'):');
+    a.forEach(function(e){L.push(icon+' '+evMin(e)+' '+tn(e)+(e.kind==='sub'?' (دخول '+e.inP+' · خروج '+e.outP+')':(e.player?' ('+e.player+')':''))+(e.second?' — صفراء ثانية':'')+(e.note?' — '+e.note:''));});
+  }
   L.push('*'+m.home.name+' '+s[0]+' – '+s[1]+' '+m.away.name+'*');
   L.push(fmtDate(m.date)+(m.comp?' · '+m.comp:'')+(m.venue?' · '+m.venue:''));
   L.push((tplName(m.tpl)?tplName(m.tpl)+' · ':'')+'الدور: '+roleName(m.role));
   L.push('⏱ '+m.half+'+'+(m.added1||0)+' / '+m.half+'+'+(m.added2||0)+(stopSecs(m)?' · توقف الإصابات '+mmss(stopSecs(m)):''));
-  line('⚽',['goal']);line('🟨',['yellow']);line('🟥',['red']);
-  var subs=ev.filter(function(e){return e.kind==='sub';});
-  if(subs.length)L.push('🔁 '+subs.map(function(e){return evMin(e)+' '+(e.team==='home'?m.home.name:m.away.name)+' ('+e.inP+'↔'+e.outP+')';}).join(' · '));
-  if(!ev.length)L.push('لا توجد أحداث');
+  group('الأهداف','⚽',['goal']);group('الإنذارات','🟨',['yellow']);group('الطرد','🟥',['red']);group('التبديلات','🔁',['sub']);
+  if(!ev.length){L.push('');L.push('لا توجد أحداث');}
   return L.join('\n');
 }
 function reportImage(m,cb){
