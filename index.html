@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F4F5F1">
 <title>تطبيق الحكم</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="الحكم">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
 <style>
 :root{--bg:#F4F5F1;--card:#FFFFFF;--ink:#14201A;--tx:#14201A;--tx2:#3F4D45;--mut:#6B7770;--line:#E2E5DE;--line2:#EDEFEA;--acc:#1F6B45;--acc2:#E6F0EA;--on:#FFFFFF;--amb:#B7791F;--amb2:#FBF1DC;--yel:#E0B400;--yel2:#FCF5D6;--red:#C93B32;--red2:#FBE9E7;--blu:#2F6DB5;--ease:cubic-bezier(.2,.8,.2,1)}
@@ -182,7 +188,7 @@ var COLORS=[['red','أحمر','#E5484D'],['blue','أزرق','#3E8EF7'],['yellow'
 var ROLES=[['ar1','مساعد أول'],['ar2','مساعد ثانٍ']];
 var KINDS=[['goal','هدف'],['yellow','صفراء'],['red','حمراء'],['sub','تبديل'],['stop','توقف إصابة']];
 var DEF_TPL=[{id:'lajna',name:'مباراة لجنة',half:45,brk:15,subs:5,et:false,pk:false},{id:'mantiqa',name:'مباراة منطقة',half:45,brk:15,subs:5,et:false,pk:false}];
-var DEF={matches:[],templates:null,settings:{half:45,brk:15,end:true,added:false,brkAlert:true,second:true,gps:true}};
+var DEF={matches:[],templates:null,clubs:[],settings:{half:45,brk:15,end:true,added:false,brkAlert:true,second:true,gps:true}};
 
 /* ---------- storage ---------- */
 function load(){
@@ -192,6 +198,7 @@ function load(){
   d.settings=d.settings||{};
   for(var k in DEF.settings)if(d.settings[k]===undefined)d.settings[k]=DEF.settings[k];
   if(!Array.isArray(d.templates)||d.tplV!==2){d.templates=JSON.parse(JSON.stringify(DEF_TPL));d.tplV=2;}
+  if(!Array.isArray(d.clubs))d.clubs=[];
   return d;
 }
 var db=load(),stored=true;
@@ -227,7 +234,7 @@ function fbInit(){
 
 /* ---------- helpers ---------- */
 var ui={view:'home',matchId:null,filter:'all',rfilter:'all',draft:null,ev:null,confirmDel:false,sheet:null,err:'',demo:false,pfilter:'all'};
-var enterAnim=false,sheetAnim=false;
+var enterAnim=false,sheetAnim=false,applying=false;
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function hex(id){for(var i=0;i<COLORS.length;i++)if(COLORS[i][0]===id)return COLORS[i][2];return '#888';}
 function roleName(id){for(var i=0;i<ROLES.length;i++)if(ROLES[i][0]===id)return ROLES[i][1];return '';}
@@ -344,6 +351,9 @@ function stepper(act,k,v,label,d){d=d||5;return '<div class="li"><span>'+label+'
 function vNew(){
   var d=ui.draft;
   return '<div class="row"><h1>مباراة جديدة</h1><button class="link mut" data-act="nav" data-v="home">إلغاء</button></div>'+
+  '<button class="btn ink" data-act="assign-pick"><span style="font-size:18px;vertical-align:-2px">\uD83D\uDCF7</span> درج صورة التكليف</button>'+
+  '<input type="file" id="assign-file" accept="image/*" style="display:none">'+
+  '<p class="xs mut" style="text-align:center;margin-top:-6px">تتعبّى الحقول تلقائيًا — راجع أسماء الأندية قبل الحفظ</p>'+
   '<div class="col"><p class="sec">نوع المباراة</p><div class="seg c2">'+db.templates.map(function(t){return '<button type="button" aria-pressed="'+(d.tpl===t.id)+'" data-act="tpl-pick" data-id="'+t.id+'">'+esc(t.name)+'</button>';}).join('')+'</div></div>'+
   '<div class="col"><p class="sec">الفريقان</p>'+
   '<div class="card col"><div class="field"><label for="f-home">صاحب الأرض</label><input class="inp" id="f-home" maxlength="30" placeholder="اسم الفريق" value="'+esc(d.home)+'"></div>'+swatches('hc',d.hc)+'</div>'+
@@ -483,20 +493,23 @@ function vMatch(){
   return h;
 }
 function reportText(m){
-  var s=score(m),L=[],ev=evSorted(m);
-  function tn(e){return e.team==='home'?m.home.name:m.away.name;}
-  function group(title,icon,kinds){
-    var a=ev.filter(function(e){return kinds.indexOf(e.kind)>=0;});if(!a.length)return;
-    L.push('');L.push(title+' ('+a.length+'):');
-    a.forEach(function(e){L.push(icon+' '+evMin(e)+' '+tn(e)+(e.kind==='sub'?' (دخول '+e.inP+' · خروج '+e.outP+')':(e.player?' ('+e.player+')':''))+(e.second?' — صفراء ثانية':'')+(e.note?' — '+e.note:''));});
+  var s=score(m),ev=evSorted(m);
+  function icon(k){return k==='goal'?'\u26BD':k==='yellow'?'\uD83D\uDFE8':k==='red'?'\uD83D\uDFE5':k==='sub'?'\uD83D\uDD01':'';}
+  function line(e){return icon(e.kind)+' '+evMin(e)+(e.kind==='sub'?' ('+e.inP+'\u2194'+e.outP+')':(e.player?' ('+e.player+')':''))+(e.second?' \u2014 \u0635\u0641\u0631\u0627\u0621 \u062B\u0627\u0646\u064A\u0629':'')+(e.note?' \u2014 '+e.note:'');}
+  function teamBlock(team){
+    var a=ev.filter(function(e){return e.team===team&&e.kind!=='stop';});
+    if(!a.length)return null;
+    return (team==='home'?m.home.name:m.away.name)+':\n'+a.map(line).join('\n');
   }
-  L.push('*'+m.home.name+' '+s[0]+' – '+s[1]+' '+m.away.name+'*');
-  L.push(fmtDate(m.date)+(m.comp?' · '+m.comp:'')+(m.venue?' · '+m.venue:''));
-  L.push((tplName(m.tpl)?tplName(m.tpl)+' · ':'')+'الدور: '+roleName(m.role));
-  L.push('⏱ '+m.half+'+'+(m.added1||0)+' / '+m.half+'+'+(m.added2||0)+(stopSecs(m)?' · توقف الإصابات '+mmss(stopSecs(m)):''));
-  group('الأهداف','⚽',['goal']);group('الإنذارات','🟨',['yellow']);group('الطرد','🟥',['red']);group('التبديلات','🔁',['sub']);
-  if(!ev.length){L.push('');L.push('لا توجد أحداث');}
-  return L.join('\n');
+  var out=['*'+m.home.name+' '+s[0]+' \u2013 '+s[1]+' '+m.away.name+'*',
+    fmtDate(m.date)+(m.comp?' \u00B7 '+m.comp:'')+(m.venue?' \u00B7 '+m.venue:''),
+    (tplName(m.tpl)?tplName(m.tpl)+' \u00B7 ':'')+'\u0627\u0644\u062F\u0648\u0631: '+roleName(m.role),
+    '\u23F1 '+m.half+'+'+(m.added1||0)+' / '+m.half+'+'+(m.added2||0)+(stopSecs(m)?' \u00B7 \u062A\u0648\u0642\u0641 \u0627\u0644\u0625\u0635\u0627\u0628\u0627\u062A '+mmss(stopSecs(m)):'')];
+  var hb=teamBlock('home'),ab=teamBlock('away');
+  if(hb){out.push('');out.push(hb);}
+  if(ab){out.push('');out.push(ab);}
+  if(!ev.length){out.push('');out.push('\u0644\u0627 \u062A\u0648\u062C\u062F \u0623\u062D\u062F\u0627\u062B');}
+  return out.join('\n');
 }
 function reportImage(m,cb){
   var s=score(m),ev=evSorted(m).filter(function(e){return e.kind!=='stop';});
@@ -697,10 +710,54 @@ function vWatch(){
   '<div class="note">تطبيق الساعة (vívoactive 5) قيد البناء؛ إعدادات الساعة أعلاه محفوظة وتُرسل لها عند الربط.</div>';
 }
 
+/* ---------- assignment OCR ---------- */
+function anorm(x){return String(x).replace(/\u0640/g,'').replace(/[\u0625\u0623\u0622]/g,'\u0627').replace(/\u0649/g,'\u064A').replace(/\u0629/g,'\u0647').replace(/[^\u0621-\u064A ]/g,'').replace(/\s+/g,' ').trim();}
+function toLatinD(x){var a='\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669';return String(x).replace(/[\u0660-\u0669]/g,function(c){return a.indexOf(c);});}
+function lev(a,b){var m=a.length,n=b.length,i,j,d=[];for(i=0;i<=m;i++)d[i]=[i];for(j=0;j<=n;j++)d[0][j]=j;for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1));return d[m][n];}
+function bestClub(tok){tok=anorm(tok);if(tok.length<3)return null;var best=null,bs=0;db.clubs.forEach(function(c){var n=anorm(c);if(!n)return;var r=1-lev(tok,n)/Math.max(tok.length,n.length);if(n.indexOf(tok)>=0||tok.indexOf(n)>=0)r=Math.max(r,0.9);if(r>bs){bs=r;best=c;}});return bs>=0.62?best:null;}
+function learnClub(name){name=(name||'').trim();if(!name)return;for(var i=0;i<db.clubs.length;i++)if(anorm(db.clubs[i])===anorm(name))return;db.clubs.push(name);if(db.clubs.length>120)db.clubs.shift();}
+var LBL=['\u0627\u0644\u0641\u0631\u064A\u0642','\u0627\u0644\u0627\u0648\u0644','\u0627\u0644\u062B\u0627\u0646\u064A','\u0627\u0644\u062A\u0627\u0631\u064A\u062E','\u0627\u0644\u0648\u0642\u062A','\u0627\u0644\u0645\u0644\u0639\u0628','\u0631\u0642\u0645','\u0627\u0644\u0645\u0628\u0627\u0631\u0627\u0647','\u0627\u0644\u0645\u0633\u0627\u0628\u0642\u0647','\u0627\u0644\u062F\u0648\u0631','\u0627\u0644\u0645\u0633\u0627\u0639\u062F','\u062D\u0643\u0645'];
+function isLbl(w){w=anorm(w);for(var i=0;i<LBL.length;i++)if(w===LBL[i])return true;return false;}
+function parseAssign(raw){
+  var t=toLatinD(raw),out={},lines=t.split(/\n+/).map(function(l){return l.replace(/\s+/g,' ').trim();}).filter(Boolean);
+  var dm=t.match(/(\d{4})-(\d{1,2})-(\d{1,2})/)||t.match(/(\d{1,2})-(\d{1,2})-(\d{4})/);
+  var tm=t.match(/(\d{1,2}):(\d{2})/);
+  if(dm){var y,mo,d;if(dm[1].length===4){y=+dm[1];mo=+dm[2];d=+dm[3];}else{d=+dm[1];mo=+dm[2];y=+dm[3];}if(mo>12&&d<=12){var x=mo;mo=d;d=x;}if(y>2000&&mo>=1&&mo<=12&&d>=1&&d<=31)out.date=y+'-'+pad2(mo)+'-'+pad2(d)+'T'+(tm?pad2(+tm[1])+':'+pad2(+tm[2]):'20:00');}
+  if(/\u0627\u0644\u0645\u0633\u0627\u0639\u062F\s*2|\u0645\u0633\u0627\u0639\u062F\s*(\u062B\u0627\u0646|2)/.test(t))out.role='ar2';else if(/\u0627\u0644\u0645\u0633\u0627\u0639\u062F\s*1|\u0645\u0633\u0627\u0639\u062F\s*(\u0627\u0648\u0644|\u0623\u0648\u0644|1)/.test(t))out.role='ar1';
+  lines.forEach(function(l){if(/\u0627\u0644\u0645\u0644\u0639\u0628/.test(l)&&!out.venue){var v=l.replace(/.*\u0627\u0644\u0645\u0644\u0639\u0628/,'').replace(/\u0631\u0642\u0645\s*\u0627\u0644\u0645\u0628\u0627\u0631\u0627\u0647.*/,'').replace(/[0-9|_.#]/g,'').trim().replace(/\s[^\s]{1,3}$/,'').trim();if(v.length>2)out.venue=v;}});
+  var ci=-1;lines.forEach(function(l,i){if(/\u0627\u0644\u0645\u0633\u0627\u0628\u0642\u0647/.test(l)||/\u0627\u0644\u0645\u0633\u0627\u0628\u0642\u0629/.test(l))ci=i;});
+  if(ci>=0){var parts=[];if(ci>0&&/\u0628\u0637\u0648\u0644|\u062F\u0648\u0631\u064A|\u0643\u0623\u0633|\u062F\u0631\u062C\u0647|\u062F\u0631\u062C\u0629/.test(lines[ci-1]))parts.push(lines[ci-1]);parts.push(lines[ci].replace(/.*\u0627\u0644\u0645\u0633\u0627\u0628\u0642[\u0647\u0629]/,'').replace(/\u0627\u0644\u062F\u0648\u0631.*/,''));if(ci+1<lines.length&&/\u0633\u0646\u0647|\u0633\u0646\u0629|\u062A\u062D\u062A|\u062F\u0631\u062C/.test(lines[ci+1]))parts.push(lines[ci+1].replace(/\u0627\u0644\u062F\u0648\u0631.*/,''));out.comp=parts.join(' ').replace(/[|_#]/g,'').replace(/\s+/g,' ').trim();}
+  var head=[];for(var i=0;i<lines.length;i++){if(/\d{4}-\d|\d{1,2}:\d{2}|\u0627\u0644\u062A\u0627\u0631\u064A\u062E|\u0627\u0644\u0648\u0642\u062A/.test(lines[i]))break;head.push(lines[i]);}
+  var toks=head.join(' ').split(/[\s|_#]+/),cand=[],seen={};
+  var LBLBLOB='\u0627\u0644\u0641\u0631\u064A\u0642\u0627\u0644\u0627\u0648\u0644\u0627\u0644\u062B\u0627\u0646\u064A\u0627\u0644\u0645\u0633\u0627\u0639\u062F';
+  toks.forEach(function(w){var n=anorm(w);if(n.length<3||isLbl(n)||LBLBLOB.indexOf(n)>=0)return;var c=bestClub(w);if(c===null){if(n.length<4)return;c=n;}if(!seen[anorm(c)]){seen[anorm(c)]=1;cand.push(c);}});
+  if(cand[0])out.home=cand[0];if(cand[1])out.away=cand[1];
+  out.raw=t;return out;
+}
+function ocrShow(txt){var o=document.getElementById('ocr');if(!o){o=document.createElement('div');o.id='ocr';o.className='sheet-bg';o.innerHTML='<div class="sheet" style="align-items:center;text-align:center;gap:12px;padding-bottom:30px"><div style="font-size:30px">\uD83D\uDCF7</div><b id="ocr-t"></b><p class="xs mut">قراءة التكليف قد تأخذ لحظات في أول مرة</p></div>';document.body.appendChild(o);}document.getElementById('ocr-t').textContent=txt;}
+function ocrHide(){var o=document.getElementById('ocr');if(o)o.remove();}
+function runAssignOCR(file){
+  ocrShow('جاري التحضير\u2026');
+  var go2=function(){
+    Tesseract.recognize(file,'ara+eng',{logger:function(m){if(m.status==='recognizing text')ocrShow('قراءة التكليف \u2026 '+Math.round(m.progress*100)+'%');}}).then(function(res){
+      ocrHide();var a=parseAssign(res.data.text||'');if(!ui.draft)ui.draft=newDraft();var d=ui.draft,got=[];
+      if(a.date){d.date=a.date;got.push('التاريخ والوقت');}
+      if(a.venue){d.venue=a.venue;got.push('الملعب');}
+      if(a.comp){d.comp=a.comp;got.push('المسابقة');}
+      if(a.role){d.role=a.role;got.push('الدور');}
+      if(a.home){d.home=a.home;}if(a.away){d.away=a.away;}
+      if(a.home||a.away)got.push('الفريق');
+      applying=true;ui.view='new';enterAnim=false;render();
+      toast(got.length?'قرأتُ: '+got.join('، ')+' — راجع الأسماء':'ما قدرت أقرأ التكليف، اكتبه يدويًا');
+    }).catch(function(e){ocrHide();toast('تعذّرت قراءة الصورة');console.error(e);});
+  };
+  if(window.Tesseract)return go2();
+  var sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';sc.onload=go2;sc.onerror=function(){ocrHide();toast('تعذّر تحميل أداة القراءة — تأكد من الإنترنت');};document.head.appendChild(sc);
+}
 /* ---------- render ---------- */
 var ICON={home:'<path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/>',reports:'<path d="M5 4h14v16H5zM9 9h6M9 13h6M9 17h3"/>',perf:'<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',watch:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>'};
 function render(){
-  syncDraft();syncEv();syncTpl();
+  if(applying){applying=false;}else{syncDraft();syncEv();syncTpl();}
   var ae=document.activeElement,fid=ae&&ae.id,ss=null,se=null;
   try{if(fid&&ae.type!=='number'&&ae.type!=='datetime-local'){ss=ae.selectionStart;se=ae.selectionEnd;}}catch(e){}
   var v=ui.view,body={home:vHome,new:vNew,reports:vReports,match:vMatch,perf:vPerf,watch:vWatch,live:vLive}[v]();
@@ -720,6 +777,7 @@ document.addEventListener('click',function(ev){
   if(a==='sheet-close'){ui.err='';return closeSheet();}
   if(a==='nav')return go(b.dataset.v);
   if(a==='new'){ui.draft=newDraft();return go('new');}
+  if(a==='assign-pick'){var fi=document.getElementById('assign-file');if(fi)fi.click();return;}
   if(a==='open'){ui.filter='all';return go('match',b.dataset.id);}
   if(a==='live')return go('live',b.dataset.id);
   if(a==='rfilter'){ui.rfilter=b.dataset.f;return render();}
@@ -735,7 +793,7 @@ document.addEventListener('click',function(ev){
     if(!d.tpl){ui.err='اختر نوع المباراة (لجنة أو منطقة).';return render();}
     if(d.hc===d.ac){ui.err='اختر لونين مختلفين للفريقين.';return render();}
     var nm={id:uid(),home:{name:d.home.trim(),color:d.hc},away:{name:d.away.trim(),color:d.ac},half:d.half,brk:d.brk,subs:d.subs,et:d.et,pk:d.pk,tpl:d.tpl,date:d.date,comp:d.comp.trim(),venue:d.venue.trim(),role:d.role,status:'upcoming',events:[],added1:0,added2:0};
-    db.matches.push(nm);save();fbWriteMatch(nm);ui.draft=null;toast('حُفظت المباراة');return go('match',nm.id);
+    learnClub(nm.home.name);learnClub(nm.away.name);db.matches.push(nm);save();fbWriteMatch(nm);ui.draft=null;toast('حُفظت المباراة');return go('match',nm.id);
   }
   if(a==='demo'){ui.demo=!ui.demo;return render();}
   if(a==='set'){db.settings[b.dataset.k]=!db.settings[b.dataset.k];save();return render();}
@@ -817,6 +875,7 @@ document.addEventListener('click',function(ev){
 });
 function sel(){var r=document.getElementById('rep');if(r){r.focus();r.select();toast('حدّد النص وانسخه يدويًا');}}
 document.addEventListener('change',function(ev){
+  if(ev.target.id==='assign-file'){var f=ev.target.files&&ev.target.files[0];ev.target.value='';if(f)runAssignOCR(f);return;}
   var d=ev.target.dataset||{},a=d.act,k=d.k,v=parseInt(ev.target.value,10),ok=!isNaN(v)&&v>0;
   if(a==='step-inp'){syncDraft();if(ok){ui.draft[k]=clamp(v,1,120);}return render();}
   if(a==='sstep-inp'){if(ok){db.settings[k]=clamp(v,1,120);save();}return render();}
