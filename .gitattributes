@@ -1,0 +1,5 @@
+# Keep binary assets byte-for-byte (prevents CRLF corruption on Windows)
+*.png binary
+*.prg binary
+*.mbc binary
+*.iq binary
