@@ -1,6 +1,9 @@
 import Toybox.Application;
 import Toybox.Lang;
 import Toybox.WatchUi;
+import Toybox.Background;
+import Toybox.Time;
+import Toybox.System;
 
 // Global singleton for the active match. Created when a match starts.
 var gMatch = null;
@@ -17,7 +20,33 @@ class RefereeApp extends Application.AppBase {
 
     function onStart(state as Dictionary?) as Void {
         gSync = new Sync();
-        gSync.flush();   // upload whatever the last session could not send
+        gSync.flush();          // upload whatever the last session could not send
+        scheduleBackground();   // keep the match list fresh while the app is shut
+    }
+
+    // Hourly background pull. Registering again with the same period is
+    // harmless, but we skip it when it is already set.
+    function scheduleBackground() {
+        try {
+            if (!(Toybox has :Background)) { return; }
+            if (Background.getTemporalEventRegisteredTime() == null) {
+                Background.registerForTemporalEvent(new Time.Duration(3600));
+            }
+        } catch (e) {
+            System.println("background register failed");
+        }
+    }
+
+    // The background service stores the list itself; this is the fallback for
+    // devices that only hand data back through the app.
+    function onBackgroundData(data) as Void {
+        if (data instanceof Lang.Array) {
+            Store.saveList(data);
+        }
+    }
+
+    function getServiceDelegate() {
+        return [ new BgService() ];
     }
 
     function onStop(state as Dictionary?) as Void {

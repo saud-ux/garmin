@@ -223,18 +223,27 @@ class Sync {
     }
 
     // ---- read: list matches (for setup screen) ----
+    // Ask only for the fields the chooser shows. Leaving the events arrays
+    // behind keeps the reply small enough for the background service.
+    function listUrl() {
+        return base() + "/users/" + USER + "/matches?key=" + API_KEY +
+               "&pageSize=25" +
+               "&mask.fieldPaths=home&mask.fieldPaths=away" +
+               "&mask.fieldPaths=half&mask.fieldPaths=brk" +
+               "&mask.fieldPaths=status&mask.fieldPaths=date&mask.fieldPaths=comp";
+    }
+
     function fetchMatches(cb) {
         _fetchCb = cb;
         if (!online()) {
             cb.invoke(null);   // null = could not reach the website
             return;
         }
-        var url = base() + "/users/" + USER + "/matches";
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
             :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON
         };
-        Communications.makeWebRequest(url, { "key" => API_KEY }, options, method(:onFetch));
+        Communications.makeWebRequest(listUrl(), null, options, method(:onFetch));
     }
 
     function onFetch(code as Lang.Number, data as Null or Lang.ByteArray or Lang.Dictionary or Lang.String or PersistedContent.Iterator) as Void {
