@@ -34,8 +34,7 @@ class SetupView extends WatchUi.View {
         var w = dc.getWidth();
         var h = dc.getHeight();
         var cx = w / 2;
-        dc.setColor(Theme.TXT, Theme.BG);
-        dc.clear();
+        Theme.fillBg(dc);
 
         dc.setColor(Theme.MUTED, Graphics.COLOR_TRANSPARENT);
         dc.drawText(cx, h * 0.13, Graphics.FONT_XTINY, "ركلة البداية لمن؟",

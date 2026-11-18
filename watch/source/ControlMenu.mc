@@ -80,8 +80,7 @@ class BookedView extends WatchUi.View {
         var w = dc.getWidth();
         var h = dc.getHeight();
         var cx = w / 2;
-        dc.setColor(Theme.BG, Theme.BG);
-        dc.clear();
+        Theme.fillBg(dc);
 
         var m = gMatch;
         dc.setColor(Theme.SUB, Graphics.COLOR_TRANSPARENT);

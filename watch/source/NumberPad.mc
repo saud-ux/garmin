@@ -59,8 +59,7 @@ class NumberPad extends WatchUi.View {
         var w = dc.getWidth();
         var h = dc.getHeight();
         var cx = w / 2;
-        dc.setColor(Theme.TXT, Theme.BG);
-        dc.clear();
+        Theme.fillBg(dc);
 
         // title + current value
         dc.setColor(mode.equals("added") ? Theme.AMBER : Theme.MUTED, Graphics.COLOR_TRANSPARENT);

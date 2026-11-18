@@ -17,11 +17,13 @@ class RefereeApp extends Application.AppBase {
 
     function onStart(state as Dictionary?) as Void {
         gSync = new Sync();
+        gSync.flush();   // upload whatever the last session could not send
     }
 
     function onStop(state as Dictionary?) as Void {
         if (gMatch != null) {
             gMatch.stopTimer();
+            gMatch.persist();   // leaving the app must never lose the match
         }
     }
 

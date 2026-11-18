@@ -73,8 +73,7 @@ class MainView extends WatchUi.View {
         var w = dc.getWidth();
         var h = dc.getHeight();
         var cx = w / 2;
-        dc.setColor(Theme.TXT, Theme.BG);
-        dc.clear();
+        Theme.fillBg(dc);
 
         if (notifKind != null) {
             drawNotification(dc, w, h, cx, gMatch);
@@ -84,6 +83,8 @@ class MainView extends WatchUi.View {
         var m = gMatch;
         if (m == null) { return; }
 
+        drawLinkDot(dc, w, h);
+
         if (m.phase.equals("half")) {
             drawBreak(dc, w, h, cx, m);
         } else if (m.phase.equals("done")) {
@@ -91,6 +92,15 @@ class MainView extends WatchUi.View {
         } else {
             drawPlay(dc, w, h, cx, m);
         }
+    }
+
+    // Small amber dot at the top when the phone is out of reach: the match is
+    // still being saved on the watch and uploads itself later.
+    function drawLinkDot(dc, w, h) {
+        if (gSync == null) { return; }
+        if (gSync.online() && gSync.pending() == 0) { return; }
+        dc.setColor(Theme.AMBER, Graphics.COLOR_TRANSPARENT);
+        dc.fillCircle(w / 2, h * 0.115, 4);
     }
 
     // ---- play screen ----

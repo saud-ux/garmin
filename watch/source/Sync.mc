@@ -1,6 +1,7 @@
 import Toybox.Lang;
 import Toybox.Communications;
 import Toybox.System;
+import Toybox.Time;
 import Toybox.PersistedContent;
 
 // Firebase Firestore REST sync. Same project/key as the website.
@@ -11,9 +12,46 @@ class Sync {
     const API_KEY = "AIzaSyCXJdmq1_KOXuZYJTcLnWlyAtduOREUrbs";
     const USER    = "saud";
 
-    var _fetchCb;   // callback holder for list fetch
+    var _fetchCb;      // callback holder for list fetch
+    var _inflight;     // dict of the match currently being uploaded
+    var _flushing;     // true while draining the offline queue
+    var _anyQueued;    // in-memory hint: something is waiting to upload
+    var _qn;           // cached queue size (screens redraw every second)
+    var _link;         // cached phone-connection state
+    var _linkAt;       // when _link was last read
+    var _enqAt;        // last time we wrote to the offline queue
 
     function initialize() {
+        _flushing = false;
+        _qn = Store.queueSize();
+        _anyQueued = _qn > 0;
+        _link = false;
+        _linkAt = 0;
+        _enqAt = 0;
+    }
+
+    // The watch only reaches the internet through the phone. Re-read at most
+    // once every 3 seconds — this is called from drawing code.
+    function online() {
+        var t = Time.now().value();
+        if (t - _linkAt >= 3) {
+            _linkAt = t;
+            try {
+                _link = System.getDeviceSettings().phoneConnected;
+            } catch (e) {
+                _link = false;
+            }
+        }
+        return _link;
+    }
+
+    function pending() {
+        return _qn;
+    }
+
+    function recount() {
+        _qn = Store.queueSize();
+        _anyQueued = _qn > 0;
     }
 
     function base() {
@@ -33,10 +71,6 @@ class Sync {
     function sMap(f)  { return { "mapValue" => { "fields" => f } }; }
     function sArr(a)  { return { "arrayValue" => { "values" => a } }; }
 
-    function statusOf(match) {
-        return match.phase.equals("done") ? "done" : "upcoming";
-    }
-
     function encEvent(e) {
         var f = {
             "id"     => sStr(e["id"]),
@@ -52,61 +86,106 @@ class Sync {
         return sMap(f);
     }
 
-    function encEvents(match) {
+    function encEvents(arr) {
         var vals = [];
-        for (var i = 0; i < match.events.size(); i++) {
-            vals.add(encEvent(match.events[i]));
+        if (arr != null) {
+            for (var i = 0; i < arr.size(); i++) {
+                vals.add(encEvent(arr[i]));
+            }
         }
         return sArr(vals);
     }
 
-    function encLive(match) {
+    function encLive(d) {
         return sMap({
-            "phase"          => sStr(match.phase),
-            "running"        => sBool(match.running),
-            "elapsedSec"     => sInt(match.elapsedSec),
-            "addedRunning"   => sBool(match.addedRunning),
-            "addedTargetSec" => sInt(match.addedTargetSec),
-            "addedElapsedSec"=> sInt(match.addedElapsedSec),
-            "breakSec"       => sInt(match.breakSec)
+            "phase"          => sStr(dv(d, "phase", "1st")),
+            "running"        => sBool(dv(d, "running", false)),
+            "elapsedSec"     => sInt(dv(d, "elapsedSec", 0)),
+            "addedRunning"   => sBool(dv(d, "addedRunning", false)),
+            "addedTargetSec" => sInt(dv(d, "addedTargetSec", 0)),
+            "addedElapsedSec"=> sInt(dv(d, "addedElapsedSec", 0)),
+            "breakSec"       => sInt(dv(d, "breakSec", 0))
         });
     }
 
-    // Full create (watch-made match): writes the whole document.
-    function pushFull(match) {
-        var fields = {
-            "id"      => sStr(match.id),
-            "home"    => sMap({ "name" => sStr(match.homeName), "color" => sStr(match.homeColor) }),
-            "away"    => sMap({ "name" => sStr(match.awayName), "color" => sStr(match.awayColor) }),
-            "half"    => sInt(match.halfLen),
-            "brk"     => sInt(match.brkLen),
-            "status"  => sStr(statusOf(match)),
-            "added1"  => sInt(match.added1),
-            "added2"  => sInt(match.added2),
-            "kickoff" => sStr(match.kickoff),
-            "events"  => encEvents(match),
-            "live"    => encLive(match),
-            "date"    => sStr(""),
-            "comp"    => sStr(""),
-            "venue"   => sStr(""),
-            "role"    => sStr("ar1")
-        };
-        commit(match.id, fields, null);
+    function dv(d, k, def) {
+        if (d != null && d.hasKey(k) && d[k] != null) { return d[k]; }
+        return def;
     }
 
-    // Ongoing update: only the fields that change during play.
-    // updateMask preserves website-set metadata (date/comp/venue/role).
+    // A watch-made match needs the whole document; a website match keeps its
+    // own metadata (date, competition, venue, role) via updateMask.
+    function pushFull(match) {
+        attempt(match.toDict(), true, true);
+    }
+
+    // Routine clock update — queued at most once every 30s while offline.
     function pushLive(match) {
+        attempt(match.toDict(), false, false);
+    }
+
+    // A goal, a card, a half ending: always recorded for upload right away.
+    function pushNow(match) {
+        attempt(match.toDict(), false, true);
+    }
+
+    // Nothing is ever lost: offline or failed uploads go to the local queue.
+    function attempt(d, full, force) {
+        if (!online()) {
+            saveForLater(d, force);
+            return;
+        }
+        _inflight = d;
+        send(d, full);
+    }
+
+    // Writing to watch storage costs flash, so only on real changes or once
+    // every 30 seconds. The active-match snapshot covers anything in between.
+    function saveForLater(d, force) {
+        var t = Time.now().value();
+        if (force || !_anyQueued || t - _enqAt >= 30) {
+            _enqAt = t;
+            Store.enqueue(d);
+            recount();
+        }
+    }
+
+    function send(d, full) {
+        var phase = dv(d, "phase", "1st");
         var fields = {
-            "status"  => sStr(statusOf(match)),
-            "added1"  => sInt(match.added1),
-            "added2"  => sInt(match.added2),
-            "kickoff" => sStr(match.kickoff),
-            "events"  => encEvents(match),
-            "live"    => encLive(match)
+            "status"  => sStr(phase.equals("done") ? "done" : "upcoming"),
+            "added1"  => sInt(dv(d, "added1", 0)),
+            "added2"  => sInt(dv(d, "added2", 0)),
+            "kickoff" => sStr(dv(d, "kickoff", "home")),
+            "events"  => encEvents(dv(d, "events", [])),
+            "live"    => encLive(d)
         };
         var mask = [ "status", "added1", "added2", "kickoff", "events", "live" ];
-        commit(match.id, fields, mask);
+        if (full) {
+            fields["id"]    = sStr(dv(d, "id", ""));
+            fields["home"]  = sMap({ "name" => sStr(dv(d, "homeName", "")), "color" => sStr(dv(d, "homeColor", "green")) });
+            fields["away"]  = sMap({ "name" => sStr(dv(d, "awayName", "")), "color" => sStr(dv(d, "awayColor", "blue")) });
+            fields["half"]  = sInt(dv(d, "halfLen", 45));
+            fields["brk"]   = sInt(dv(d, "brkLen", 15));
+            fields["date"]  = sStr("");
+            fields["comp"]  = sStr("");
+            fields["venue"] = sStr("");
+            fields["role"]  = sStr("ar1");
+            mask = null;
+        }
+        commit(dv(d, "id", ""), fields, mask);
+    }
+
+    // Send the oldest waiting match; the rest follow one by one on success.
+    function flush() {
+        if (!online() || _flushing) { return; }
+        var q = Store.queue();
+        _qn = q.size();
+        if (_qn == 0) { _anyQueued = false; return; }
+        var d = q[0];
+        _flushing = true;
+        _inflight = d;
+        send(d, dv(d, "isNew", false));
     }
 
     function commit(id, fields, mask) {
@@ -125,14 +204,31 @@ class Sync {
     }
 
     function onPush(code as Lang.Number, data as Null or Lang.ByteArray or Lang.Dictionary or Lang.String or PersistedContent.Iterator) as Void {
-        if (code != 200) {
+        var d = _inflight;
+        _inflight = null;
+        var wasFlush = _flushing;
+        _flushing = false;
+        if (code == 200) {
+            if (d != null && _anyQueued) {
+                Store.dequeue(dv(d, "id", null));
+                recount();
+            }
+            if (wasFlush) { flush(); }
+        } else {
             System.println("FB push failed: " + code);
+            if (d != null) {
+                saveForLater(d, false);
+            }
         }
     }
 
     // ---- read: list matches (for setup screen) ----
     function fetchMatches(cb) {
         _fetchCb = cb;
+        if (!online()) {
+            cb.invoke(null);   // null = could not reach the website
+            return;
+        }
         var url = base() + "/users/" + USER + "/matches";
         var options = {
             :method => Communications.HTTP_REQUEST_METHOD_GET,
@@ -142,8 +238,12 @@ class Sync {
     }
 
     function onFetch(code as Lang.Number, data as Null or Lang.ByteArray or Lang.Dictionary or Lang.String or PersistedContent.Iterator) as Void {
+        if (code != 200) {
+            if (_fetchCb != null) { _fetchCb.invoke(null); }
+            return;
+        }
         var list = [];
-        if (code == 200 && data instanceof Lang.Dictionary) {
+        if (data instanceof Lang.Dictionary) {
             var dd = data as Lang.Dictionary;
             if (dd.hasKey("documents")) {
                 var docs = dd["documents"] as Lang.Array;

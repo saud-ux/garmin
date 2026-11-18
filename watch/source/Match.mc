@@ -95,6 +95,12 @@ class Match {
         if (_tick % 5 == 0) {
             pushLive();   // throttle cloud writes to every 5s
         }
+        if (_tick % 30 == 0) {
+            persist();    // local snapshot every 30s (clock catches up on resume)
+        }
+        if (_tick % 60 == 0 && gSync != null && gSync.pending() > 0) {
+            gSync.flush();   // phone came back — drain what is waiting
+        }
         WatchUi.requestUpdate();
     }
 
@@ -108,8 +114,9 @@ class Match {
             gSync.pushFull(self);   // create full doc for watch-made match
             isNew = false;
         } else {
-            pushLive();
+            pushNow();
         }
+        persist();
     }
 
     function endFirstHalf() {
@@ -118,7 +125,8 @@ class Match {
         addedRunning = false;
         breakSec = 0;
         buzz(2);
-        pushLive();
+        persist();
+        pushNow();
     }
 
     function startSecondHalf() {
@@ -128,7 +136,8 @@ class Match {
         addedRunning = false;
         addedElapsedSec = 0;
         addedTargetSec = 0;
-        pushLive();
+        persist();
+        pushNow();
     }
 
     function endMatch() {
@@ -136,7 +145,8 @@ class Match {
         running = false;
         addedRunning = false;
         buzz(3);
-        pushLive();
+        persist();
+        pushNow();
     }
 
     // ---- added time ----
@@ -146,7 +156,8 @@ class Match {
         addedTargetSec = minutes * 60;
         addedElapsedSec = 0;
         addedRunning = minutes > 0;
-        pushLive();
+        persist();
+        pushNow();
     }
 
     // ---- events ----
@@ -179,7 +190,8 @@ class Match {
             }
         }
         buzz(1);
-        pushLive();
+        persist();
+        pushNow();
         return second;
     }
 
@@ -207,7 +219,8 @@ class Match {
                     events.remove(prev);
                 }
             }
-            pushLive();
+            persist();
+            pushNow();
         }
     }
 
@@ -255,6 +268,85 @@ class Match {
         if (gSync != null) {
             gSync.pushLive(self);
         }
+    }
+
+    function pushNow() {
+        if (gSync != null) {
+            gSync.pushNow(self);
+        }
+    }
+
+    // ---- local persistence ----
+    function toDict() {
+        return {
+            "id"              => id,
+            "homeName"        => homeName,
+            "homeColor"       => homeColor,
+            "awayName"        => awayName,
+            "awayColor"       => awayColor,
+            "halfLen"         => halfLen,
+            "brkLen"          => brkLen,
+            "kickoff"         => kickoff,
+            "isNew"           => isNew,
+            "phase"           => phase,
+            "elapsedSec"      => elapsedSec,
+            "running"         => running,
+            "added1"          => added1,
+            "added2"          => added2,
+            "addedTargetSec"  => addedTargetSec,
+            "addedElapsedSec" => addedElapsedSec,
+            "addedRunning"    => addedRunning,
+            "breakSec"        => breakSec,
+            "events"          => events,
+            "savedAt"         => Time.now().value()
+        };
+    }
+
+    function persist() {
+        Store.saveActive(toDict());
+    }
+
+    static function dg(d, k, def) {
+        if (d != null && d.hasKey(k) && d[k] != null) { return d[k]; }
+        return def;
+    }
+
+    // Rebuild a match from its stored snapshot and catch the clock up to now.
+    static function fromDict(d) {
+        if (d == null) { return null; }
+        var m = new Match({
+            "id"        => dg(d, "id", null),
+            "homeName"  => dg(d, "homeName", "الأرض"),
+            "homeColor" => dg(d, "homeColor", "green"),
+            "awayName"  => dg(d, "awayName", "الضيف"),
+            "awayColor" => dg(d, "awayColor", "blue"),
+            "halfLen"   => dg(d, "halfLen", 45),
+            "brkLen"    => dg(d, "brkLen", 15),
+            "kickoff"   => dg(d, "kickoff", "home"),
+            "isNew"     => dg(d, "isNew", false)
+        });
+        m.phase           = dg(d, "phase", "1st");
+        m.elapsedSec      = dg(d, "elapsedSec", 0);
+        m.running         = dg(d, "running", false);
+        m.added1          = dg(d, "added1", 0);
+        m.added2          = dg(d, "added2", 0);
+        m.addedTargetSec  = dg(d, "addedTargetSec", 0);
+        m.addedElapsedSec = dg(d, "addedElapsedSec", 0);
+        m.addedRunning    = dg(d, "addedRunning", false);
+        m.breakSec        = dg(d, "breakSec", 0);
+        var ev = dg(d, "events", []);
+        m.events = (ev instanceof Lang.Array) ? ev : [];
+
+        var gap = Time.now().value() - dg(d, "savedAt", Time.now().value());
+        if (gap > 0) {
+            if ((m.phase.equals("1st") || m.phase.equals("2nd")) && m.running) {
+                m.elapsedSec += gap;
+                if (m.addedRunning) { m.addedElapsedSec += gap; }
+            } else if (m.phase.equals("half")) {
+                m.breakSec += gap;
+            }
+        }
+        return m;
     }
 
     static function mmss(s) {
